@@ -63,6 +63,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String PARTS_TABLE = "parts";
     public static final String PARTICIPANTS_TABLE = "participants";
     public static final String CONVERSATION_PARTICIPANTS_TABLE = "conversation_participants";
+    public static final String MESSAGES_FTS_TABLE = "messages_fts";
 
     // Views
     static final String DRAFT_PARTS_VIEW = "draft_parts_view";
@@ -384,6 +385,52 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             "CREATE INDEX index_" + PARTS_TABLE + "_message_id ON " + PARTS_TABLE + "("
                     + PartColumns.MESSAGE_ID + ")";
 
+    // Full-text search over message body text. Contentless-external mirror of
+    // parts.text using rowid==parts._id. Diacritics folded so 'café' matches 'cafe'.
+    public static class MessagesFtsColumns {
+        public static final String TEXT = "text";
+    }
+
+    public static final String CREATE_MESSAGES_FTS_TABLE_SQL =
+            "CREATE VIRTUAL TABLE " + MESSAGES_FTS_TABLE + " USING fts5("
+                    + MessagesFtsColumns.TEXT + ", "
+                    + "content=" + PARTS_TABLE + ", "
+                    + "content_rowid=" + PartColumns._ID + ", "
+                    + "tokenize=\"unicode61 remove_diacritics 2\")";
+
+    public static final String CREATE_MESSAGES_FTS_AI_TRIGGER_SQL =
+            "CREATE TRIGGER messages_fts_ai_trigger AFTER INSERT ON " + PARTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + MESSAGES_FTS_TABLE
+                    + "(rowid, " + MessagesFtsColumns.TEXT + ") "
+                    + "VALUES (new." + PartColumns._ID + ", new." + PartColumns.TEXT + "); "
+                    + "END";
+
+    public static final String CREATE_MESSAGES_FTS_AD_TRIGGER_SQL =
+            "CREATE TRIGGER messages_fts_ad_trigger AFTER DELETE ON " + PARTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + MESSAGES_FTS_TABLE
+                    + "(" + MESSAGES_FTS_TABLE + ", rowid, " + MessagesFtsColumns.TEXT + ") "
+                    + "VALUES ('delete', old." + PartColumns._ID + ", old." + PartColumns.TEXT
+                    + "); END";
+
+    public static final String CREATE_MESSAGES_FTS_AU_TRIGGER_SQL =
+            "CREATE TRIGGER messages_fts_au_trigger AFTER UPDATE ON " + PARTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + MESSAGES_FTS_TABLE
+                    + "(" + MESSAGES_FTS_TABLE + ", rowid, " + MessagesFtsColumns.TEXT + ") "
+                    + "VALUES ('delete', old." + PartColumns._ID + ", old." + PartColumns.TEXT
+                    + "); "
+                    + "INSERT INTO " + MESSAGES_FTS_TABLE
+                    + "(rowid, " + MessagesFtsColumns.TEXT + ") "
+                    + "VALUES (new." + PartColumns._ID + ", new." + PartColumns.TEXT + "); "
+                    + "END";
+
+    // Re-reads body text from the parts table into the FTS index. Used during db upgrade
+    // to backfill existing rows; safe to invoke against an empty parts table.
+    public static final String REBUILD_MESSAGES_FTS_SQL =
+            "INSERT INTO " + MESSAGES_FTS_TABLE + "(" + MESSAGES_FTS_TABLE + ") VALUES ('rebuild')";
+
     // Participants table schema
     public static class ParticipantColumns implements BaseColumns {
         /* The subscription id for the sim associated with this self participant.
@@ -538,6 +585,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         CREATE_PARTS_TABLE_SQL,
         CREATE_PARTICIPANTS_TABLE_SQL,
         CREATE_CONVERSATION_PARTICIPANTS_TABLE_SQL,
+        CREATE_MESSAGES_FTS_TABLE_SQL,
     };
 
     // List of all our indices
@@ -555,6 +603,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String[] CREATE_TRIGGER_SQLS = new String[] {
             CREATE_PARTS_TRIGGER_SQL,
             CREATE_MESSAGES_TRIGGER_SQL,
+            CREATE_MESSAGES_FTS_AI_TRIGGER_SQL,
+            CREATE_MESSAGES_FTS_AD_TRIGGER_SQL,
+            CREATE_MESSAGES_FTS_AU_TRIGGER_SQL,
     };
 
     // List of all our views

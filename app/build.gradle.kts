@@ -194,6 +194,7 @@ dependencies {
     testImplementation(libs.mockk.agent)
     testImplementation(libs.mockk.android)
     testImplementation(libs.robolectric)
+    testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.turbine)
 
     androidTestImplementation(platform(libs.androidx.compose.bom))

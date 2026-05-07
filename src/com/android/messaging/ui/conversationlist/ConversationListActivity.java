@@ -98,6 +98,10 @@ public class ConversationListActivity extends AbstractConversationListActivity {
             onActionBarDebug();
             return true;
         }
+        if (itemId == R.id.action_search) {
+            UIIntents.get().launchMessageSearchActivity(this);
+            return true;
+        }
         if (itemId == R.id.action_show_archived) {
             onActionBarArchived();
             return true;

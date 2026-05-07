@@ -24,6 +24,16 @@
     <string name="share_intent_activity_label">Select conversation</string>
 
     <string name="action_settings">Settings</string>
+    <!-- Toolbar action label for opening message search -->
+    <string name="action_search">Search</string>
+    <!-- Title shown in the search activity action bar -->
+    <string name="search_activity_title">Search messages</string>
+    <!-- Hint text inside the search input -->
+    <string name="search_hint">Search messages</string>
+    <!-- Empty state when the user hasn't typed anything yet -->
+    <string name="search_prompt">Type to search messages</string>
+    <!-- Empty state when a query returns no matches -->
+    <string name="search_no_results">No matches found</string>
     <string name="sendButtonContentDescription">Send Message</string>
     <string name="attachMediaButtonContentDescription">Add an attachment</string>
     <string name="help_and_feedback_activity_label">Help</string>

@@ -223,6 +223,13 @@ public class UIIntentsImpl extends UIIntents {
     }
 
     @Override
+    public void launchMessageSearchActivity(final Context context) {
+        final Intent intent = new Intent(context,
+                com.android.messaging.ui.search.MessageSearchActivity.class);
+        context.startActivity(intent);
+    }
+
+    @Override
     public void launchBlockedParticipantsActivity(final Context context) {
         final Intent intent = new Intent(context, BlockedParticipantsActivity.class);
         context.startActivity(intent);

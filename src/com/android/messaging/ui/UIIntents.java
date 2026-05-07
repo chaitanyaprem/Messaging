@@ -180,6 +180,11 @@ public abstract class UIIntents {
     public abstract void launchArchivedConversationsActivity(final Context context);
 
     /**
+     * Launch an activity to search across all messages.
+     */
+    public abstract void launchMessageSearchActivity(final Context context);
+
+    /**
      * Launch an activity to show blocked participants.
      */
     public abstract void launchBlockedParticipantsActivity(final Context context);

@@ -51,6 +51,9 @@ public class DatabaseUpgradeHelper {
         if (currentVersion < 3) {
             currentVersion = upgradeToVersion3(db);
         }
+        if (currentVersion < 4) {
+            currentVersion = upgradeToVersion4(db);
+        }
         // Rebuild all the views
         final Context context = Factory.get().getApplicationContext();
         DatabaseHelper.dropAllViews(db);
@@ -75,6 +78,17 @@ public class DatabaseUpgradeHelper {
         db.execSQL(DatabaseHelper.REBUILD_MESSAGES_FTS_SQL);
         LogUtil.i(TAG, "Upgraded database to version 3");
         return 3;
+    }
+
+    private int upgradeToVersion4(final SQLiteDatabase db) {
+        db.execSQL(DatabaseHelper.CREATE_PARTICIPANTS_FTS_TABLE_SQL);
+        db.execSQL(DatabaseHelper.CREATE_PARTICIPANTS_FTS_AI_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_PARTICIPANTS_FTS_AD_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_PARTICIPANTS_FTS_AU_TRIGGER_SQL);
+        // Backfill the FTS index from existing participants rows.
+        db.execSQL(DatabaseHelper.REBUILD_PARTICIPANTS_FTS_SQL);
+        LogUtil.i(TAG, "Upgraded database to version 4");
+        return 4;
     }
 
     /**

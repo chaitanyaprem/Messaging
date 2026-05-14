@@ -14,7 +14,9 @@ import android.database.Cursor;
 import com.android.messaging.datamodel.DataModel;
 import com.android.messaging.datamodel.DatabaseHelper;
 import com.android.messaging.datamodel.DatabaseHelper.ConversationColumns;
+import com.android.messaging.datamodel.DatabaseHelper.ConversationParticipantsColumns;
 import com.android.messaging.datamodel.DatabaseHelper.MessageColumns;
+import com.android.messaging.datamodel.DatabaseHelper.ParticipantColumns;
 import com.android.messaging.datamodel.DatabaseHelper.PartColumns;
 import com.android.messaging.datamodel.DatabaseWrapper;
 
@@ -26,11 +28,18 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * Runs full-text search against the FTS5 index added in db v3.
+ * Runs full-text search against the FTS5 indexes added in db v3 (messages) and v4 (participants).
  *
- * <p>Uses contentless-external joins from {@code messages_fts} → {@code parts} →
- * {@code messages} → {@code conversations} so each result row carries enough metadata to render
- * a search-results entry without follow-up queries.
+ * <p>Two passes:
+ * <ol>
+ *   <li>{@code messages_fts} → {@code parts} → {@code messages} → {@code conversations} for body
+ *       hits, returning a per-message snippet with the matched word delimited.</li>
+ *   <li>{@code participants_fts} → {@code conversation_participants} → {@code conversations} for
+ *       contact-name and phone-number hits, returning one row per matching conversation with the
+ *       matched participant's display name as the snippet.</li>
+ * </ol>
+ * Body hits are preferred when both kinds match the same conversation, since they tell the user
+ * exactly which message was hit. Participant hits fill in conversations that the body pass missed.
  */
 public final class MessageSearchQuery {
     /** Snippet delimiters; chosen to never collide with real SMS body content. */
@@ -61,6 +70,32 @@ public final class MessageSearchQuery {
                     + MessageColumns.CONVERSATION_ID + " "
                     + "WHERE " + DatabaseHelper.MESSAGES_FTS_TABLE + " MATCH ? "
                     + "ORDER BY m." + MessageColumns.RECEIVED_TIMESTAMP + " DESC "
+                    + "LIMIT ?";
+
+    // Returns one row per (conversation, matching participant). Snippet is the participant's
+    // display name (or destination if unnamed); timestamp comes from the conversation's
+    // sort_timestamp so a contact match floats the conversation to the same position it would
+    // hold in the inbox.
+    private static final String PARTICIPANT_SEARCH_SQL =
+            "SELECT cp." + ConversationParticipantsColumns.CONVERSATION_ID + " AS conversation_id, "
+                    + "c." + ConversationColumns.NAME + " AS conversation_name, "
+                    + "c." + ConversationColumns.ICON + " AS conversation_icon, "
+                    + "COALESCE(c." + ConversationColumns.SORT_TIMESTAMP + ", 0) "
+                    + "AS received_timestamp, "
+                    + "COALESCE(NULLIF(p." + ParticipantColumns.FULL_NAME + ", ''), "
+                    + "p." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "p." + ParticipantColumns.NORMALIZED_DESTINATION + ", '') "
+                    + "AS body_snippet "
+                    + "FROM " + DatabaseHelper.PARTICIPANTS_FTS_TABLE + " pf "
+                    + "INNER JOIN " + DatabaseHelper.CONVERSATION_PARTICIPANTS_TABLE + " cp "
+                    + " ON cp." + ConversationParticipantsColumns.PARTICIPANT_ID + " = pf.rowid "
+                    + "INNER JOIN " + DatabaseHelper.PARTICIPANTS_TABLE + " p "
+                    + " ON p." + ParticipantColumns._ID + " = pf.rowid "
+                    + "INNER JOIN " + DatabaseHelper.CONVERSATIONS_TABLE + " c "
+                    + " ON c." + ConversationColumns._ID + " = cp."
+                    + ConversationParticipantsColumns.CONVERSATION_ID + " "
+                    + "WHERE " + DatabaseHelper.PARTICIPANTS_FTS_TABLE + " MATCH ? "
+                    + "ORDER BY c." + ConversationColumns.SORT_TIMESTAMP + " DESC "
                     + "LIMIT ?";
 
     private MessageSearchQuery() {
@@ -122,6 +157,7 @@ public final class MessageSearchQuery {
         // Over-fetch then collapse per conversation so users don't see a flood of hits from a
         // single noisy thread.
         final int rawLimit = Math.max(limit, limit * 4);
+        final Map<String, MessageSearchResult> byConv = new LinkedHashMap<>();
         try (Cursor c = db.rawQuery(SEARCH_SQL, new String[] {
                 String.valueOf(SNIPPET_START),
                 String.valueOf(SNIPPET_END),
@@ -129,13 +165,26 @@ public final class MessageSearchQuery {
                 ftsQuery,
                 String.valueOf(rawLimit),
         })) {
-            return collapseToResults(c, limit);
+            collectInto(c, byConv, limit);
         }
+        if (byConv.size() < limit) {
+            // Fill remaining slots with conversations whose participant (name or phone) matched
+            // but whose body text didn't. Body matches keep their slot since the snippet is
+            // more informative than a plain contact name.
+            try (Cursor c = db.rawQuery(PARTICIPANT_SEARCH_SQL, new String[] {
+                    ftsQuery,
+                    String.valueOf(rawLimit),
+            })) {
+                collectInto(c, byConv, limit);
+            }
+        }
+        return new ArrayList<>(byConv.values());
     }
 
-    private static List<MessageSearchResult> collapseToResults(final Cursor c, final int limit) {
+    private static void collectInto(final Cursor c, final Map<String, MessageSearchResult> byConv,
+            final int limit) {
         if (c == null) {
-            return Collections.emptyList();
+            return;
         }
         final int colConvId = c.getColumnIndexOrThrow("conversation_id");
         final int colConvName = c.getColumnIndexOrThrow("conversation_name");
@@ -143,8 +192,6 @@ public final class MessageSearchQuery {
         final int colTs = c.getColumnIndexOrThrow("received_timestamp");
         final int colSnip = c.getColumnIndexOrThrow("body_snippet");
 
-        // LinkedHashMap preserves insertion order (timestamp DESC from SQL ORDER BY).
-        final Map<String, MessageSearchResult> byConv = new LinkedHashMap<>();
         while (c.moveToNext() && byConv.size() < limit) {
             final String convId = c.getString(colConvId);
             if (convId == null || byConv.containsKey(convId)) {
@@ -162,6 +209,5 @@ public final class MessageSearchQuery {
                         "unexpected RESULTS_PER_CONVERSATION=%d", RESULTS_PER_CONVERSATION));
             }
         }
-        return new ArrayList<>(byConv.values());
     }
 }

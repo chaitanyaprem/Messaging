@@ -64,6 +64,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String PARTICIPANTS_TABLE = "participants";
     public static final String CONVERSATION_PARTICIPANTS_TABLE = "conversation_participants";
     public static final String MESSAGES_FTS_TABLE = "messages_fts";
+    public static final String PARTICIPANTS_FTS_TABLE = "participants_fts";
 
     // Views
     static final String DRAFT_PARTS_VIEW = "draft_parts_view";
@@ -431,6 +432,89 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String REBUILD_MESSAGES_FTS_SQL =
             "INSERT INTO " + MESSAGES_FTS_TABLE + "(" + MESSAGES_FTS_TABLE + ") VALUES ('rebuild')";
 
+    // Full-text search over participant identity. Contentless-external mirror of
+    // participants using rowid==participants._id. Indexes the names plus the destination forms
+    // so a query for either a contact name or any digit chunk of their phone number resolves
+    // back to the conversations they're in.
+    public static class ParticipantsFtsColumns {
+        public static final String FULL_NAME = "full_name";
+        public static final String FIRST_NAME = "first_name";
+        public static final String SEND_DESTINATION = "send_destination";
+        public static final String NORMALIZED_DESTINATION = "normalized_destination";
+    }
+
+    public static final String CREATE_PARTICIPANTS_FTS_TABLE_SQL =
+            "CREATE VIRTUAL TABLE " + PARTICIPANTS_FTS_TABLE + " USING fts5("
+                    + ParticipantsFtsColumns.FULL_NAME + ", "
+                    + ParticipantsFtsColumns.FIRST_NAME + ", "
+                    + ParticipantsFtsColumns.SEND_DESTINATION + ", "
+                    + ParticipantsFtsColumns.NORMALIZED_DESTINATION + ", "
+                    + "content=" + PARTICIPANTS_TABLE + ", "
+                    + "content_rowid=" + ParticipantColumns._ID + ", "
+                    + "tokenize=\"unicode61 remove_diacritics 2\")";
+
+    public static final String CREATE_PARTICIPANTS_FTS_AI_TRIGGER_SQL =
+            "CREATE TRIGGER participants_fts_ai_trigger AFTER INSERT ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + PARTICIPANTS_FTS_TABLE + "(rowid, "
+                    + ParticipantsFtsColumns.FULL_NAME + ", "
+                    + ParticipantsFtsColumns.FIRST_NAME + ", "
+                    + ParticipantsFtsColumns.SEND_DESTINATION + ", "
+                    + ParticipantsFtsColumns.NORMALIZED_DESTINATION + ") "
+                    + "VALUES (new." + ParticipantColumns._ID + ", "
+                    + "new." + ParticipantColumns.FULL_NAME + ", "
+                    + "new." + ParticipantColumns.FIRST_NAME + ", "
+                    + "new." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "new." + ParticipantColumns.NORMALIZED_DESTINATION + "); "
+                    + "END";
+
+    public static final String CREATE_PARTICIPANTS_FTS_AD_TRIGGER_SQL =
+            "CREATE TRIGGER participants_fts_ad_trigger AFTER DELETE ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + PARTICIPANTS_FTS_TABLE + "("
+                    + PARTICIPANTS_FTS_TABLE + ", rowid, "
+                    + ParticipantsFtsColumns.FULL_NAME + ", "
+                    + ParticipantsFtsColumns.FIRST_NAME + ", "
+                    + ParticipantsFtsColumns.SEND_DESTINATION + ", "
+                    + ParticipantsFtsColumns.NORMALIZED_DESTINATION + ") "
+                    + "VALUES ('delete', old." + ParticipantColumns._ID + ", "
+                    + "old." + ParticipantColumns.FULL_NAME + ", "
+                    + "old." + ParticipantColumns.FIRST_NAME + ", "
+                    + "old." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "old." + ParticipantColumns.NORMALIZED_DESTINATION + "); "
+                    + "END";
+
+    public static final String CREATE_PARTICIPANTS_FTS_AU_TRIGGER_SQL =
+            "CREATE TRIGGER participants_fts_au_trigger AFTER UPDATE ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + PARTICIPANTS_FTS_TABLE + "("
+                    + PARTICIPANTS_FTS_TABLE + ", rowid, "
+                    + ParticipantsFtsColumns.FULL_NAME + ", "
+                    + ParticipantsFtsColumns.FIRST_NAME + ", "
+                    + ParticipantsFtsColumns.SEND_DESTINATION + ", "
+                    + ParticipantsFtsColumns.NORMALIZED_DESTINATION + ") "
+                    + "VALUES ('delete', old." + ParticipantColumns._ID + ", "
+                    + "old." + ParticipantColumns.FULL_NAME + ", "
+                    + "old." + ParticipantColumns.FIRST_NAME + ", "
+                    + "old." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "old." + ParticipantColumns.NORMALIZED_DESTINATION + "); "
+                    + "INSERT INTO " + PARTICIPANTS_FTS_TABLE + "(rowid, "
+                    + ParticipantsFtsColumns.FULL_NAME + ", "
+                    + ParticipantsFtsColumns.FIRST_NAME + ", "
+                    + ParticipantsFtsColumns.SEND_DESTINATION + ", "
+                    + ParticipantsFtsColumns.NORMALIZED_DESTINATION + ") "
+                    + "VALUES (new." + ParticipantColumns._ID + ", "
+                    + "new." + ParticipantColumns.FULL_NAME + ", "
+                    + "new." + ParticipantColumns.FIRST_NAME + ", "
+                    + "new." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "new." + ParticipantColumns.NORMALIZED_DESTINATION + "); "
+                    + "END";
+
+    // Backfill the participants FTS index from existing participants rows. Used on upgrade.
+    public static final String REBUILD_PARTICIPANTS_FTS_SQL =
+            "INSERT INTO " + PARTICIPANTS_FTS_TABLE + "(" + PARTICIPANTS_FTS_TABLE
+                    + ") VALUES ('rebuild')";
+
     // Participants table schema
     public static class ParticipantColumns implements BaseColumns {
         /* The subscription id for the sim associated with this self participant.
@@ -586,6 +670,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         CREATE_PARTICIPANTS_TABLE_SQL,
         CREATE_CONVERSATION_PARTICIPANTS_TABLE_SQL,
         CREATE_MESSAGES_FTS_TABLE_SQL,
+        CREATE_PARTICIPANTS_FTS_TABLE_SQL,
     };
 
     // List of all our indices
@@ -606,6 +691,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             CREATE_MESSAGES_FTS_AI_TRIGGER_SQL,
             CREATE_MESSAGES_FTS_AD_TRIGGER_SQL,
             CREATE_MESSAGES_FTS_AU_TRIGGER_SQL,
+            CREATE_PARTICIPANTS_FTS_AI_TRIGGER_SQL,
+            CREATE_PARTICIPANTS_FTS_AD_TRIGGER_SQL,
+            CREATE_PARTICIPANTS_FTS_AU_TRIGGER_SQL,
     };
 
     // List of all our views

@@ -17,7 +17,7 @@
 package com.android.messaging.datamodel;
 
 import android.content.Context;
-import android.database.sqlite.SQLiteDatabase;
+import io.requery.android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.telephony.SubscriptionManager;
 

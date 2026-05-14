@@ -19,11 +19,11 @@ package com.android.messaging.datamodel;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
-import android.database.DatabaseUtils;
-import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteFullException;
-import android.database.sqlite.SQLiteQueryBuilder;
-import android.database.sqlite.SQLiteStatement;
+
+import io.requery.android.database.sqlite.SQLiteDatabase;
+import io.requery.android.database.sqlite.SQLiteQueryBuilder;
+import io.requery.android.database.sqlite.SQLiteStatement;
 import android.util.SparseArray;
 
 import com.android.messaging.Factory;
@@ -305,8 +305,7 @@ public class DatabaseWrapper {
             t1 = System.currentTimeMillis();
         }
         maybePlayDebugNoise();
-        final long retval =
-                DatabaseUtils.queryNumEntries(mDatabase, table, selection, selectionArgs);
+        final long retval = mDatabase.queryNumEntries(table, selection, selectionArgs);
         if (mLog){
             printTiming(
                     t1,

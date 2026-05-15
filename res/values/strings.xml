@@ -1119,4 +1119,12 @@
     <string name="alerts_channel">Alerts</string>
 
     <string name="mark_as_read">Mark as read</string>
+
+    <!-- Category filter chip labels above the conversation list. -->
+    <string name="category_chip_all">All</string>
+    <string name="category_chip_personal">Personal</string>
+    <string name="category_chip_transactions">Transactions</string>
+    <string name="category_chip_promotions">Promotions</string>
+    <string name="category_chip_updates">Updates</string>
+    <string name="category_chip_spam">Spam</string>
 </resources>

@@ -360,7 +360,9 @@ public class ConversationListItemData {
             + DatabaseHelper.PARTICIPANTS_TABLE + '.' + ParticipantColumns.DISPLAY_DESTINATION
             + " as " + ConversationListViewColumns.SNIPPET_SENDER_DISPLAY_DESTINATION + ", "
             + DatabaseHelper.CONVERSATIONS_TABLE + '.' + ConversationColumns.IS_ENTERPRISE
-            + " as " + ConversationListViewColumns.IS_ENTERPRISE;
+            + " as " + ConversationListViewColumns.IS_ENTERPRISE + ", "
+            + DatabaseHelper.CONVERSATIONS_TABLE + '.' + ConversationColumns.CATEGORY
+            + " as " + ConversationListViewColumns.CATEGORY;
 
     private static final String JOIN_PARTICIPANTS =
             " LEFT JOIN " + DatabaseHelper.PARTICIPANTS_TABLE + " ON ("
@@ -420,6 +422,7 @@ public class ConversationListItemData {
         static final String SNIPPET_SENDER_DISPLAY_DESTINATION =
                 "snippet_sender_display_destination";
         static final String IS_ENTERPRISE = ConversationColumns.IS_ENTERPRISE;
+        public static final String CATEGORY = ConversationColumns.CATEGORY;
     }
 
     public static final String[] PROJECTION = {

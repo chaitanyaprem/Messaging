@@ -21,6 +21,7 @@ import com.android.messaging.datamodel.DatabaseHelper.ConversationColumns;
 import com.android.messaging.datamodel.DatabaseHelper.MessageColumns;
 import com.android.messaging.datamodel.DatabaseHelper.PartColumns;
 import com.android.messaging.datamodel.DatabaseWrapper;
+import com.android.messaging.datamodel.MessagingContentProvider;
 import com.android.messaging.datamodel.data.ParticipantData;
 import com.android.messaging.util.LogUtil;
 
@@ -94,6 +95,9 @@ public final class CategoryUpdater {
                     + " -> " + next + " for conversation " + conversationId
                     + " (sender=" + facts.senderDestination + ")");
         }
+        // Make the conversation list re-query so the new bucket assignment is visible without
+        // requiring a manual chip tap or activity recreation.
+        MessagingContentProvider.notifyConversationListChanged();
     }
 
     @Nullable

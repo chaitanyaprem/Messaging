@@ -68,4 +68,11 @@ public final class BuglePrefsKeys {
     public static final String PROCESS_PENDING_MESSAGES_RETRY_COUNT
             = BuglePrefs.SHARED_PREFERENCES_PER_SUBSCRIPTION_PREFIX + "process_pending_retry";
 
+    /**
+     * True while a one-shot background categorization sweep of existing conversations is still
+     * owed (set by the v3 DB upgrade so we don't try to backfill on the upgrade thread). Cleared
+     * once {@link com.android.messaging.category.CategoryBackfiller} finishes its sweep.
+     */
+    public static final String CATEGORY_BACKFILL_PENDING = "category_backfill_pending";
+    public static final boolean CATEGORY_BACKFILL_PENDING_DEFAULT = false;
 }

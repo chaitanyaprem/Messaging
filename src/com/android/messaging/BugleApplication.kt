@@ -100,6 +100,8 @@ open class BugleApplication :
             )
             // Fixup messages in flight if we crashed and send any pending.
             dataModel.onApplicationCreated()
+            // Pick up any conversations that pre-date the categorization feature.
+            com.android.messaging.category.CategoryBackfiller.runIfPending()
             registerCarrierConfigChangeReceiver(context = context)
         }
     }

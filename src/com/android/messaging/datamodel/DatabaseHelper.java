@@ -166,6 +166,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         // A conversation is enterprise if one of the participant is a enterprise contact.
         public static final String IS_ENTERPRISE = "IS_ENTERPRISE";
+
+        /*
+         * Inbox category assigned by the categorizer. Stored as the int code from
+         * {@code com.android.messaging.category.MessageCategory#getCode()}. Default 0 ==
+         * PERSONAL so legacy rows and freshly created conversations land in the safe bucket.
+         */
+        public static final String CATEGORY = "category";
+
+        /*
+         * 1 when the user has manually moved the conversation; the auto-categorizer must then
+         * leave it alone. Default 0.
+         */
+        public static final String CATEGORY_OVERRIDE = "category_override";
     }
 
     // Conversation table SQL
@@ -200,7 +213,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     + ConversationColumns.NOTIFICATION_VIBRATION + " INT DEFAULT(1), "
                     + ConversationColumns.INCLUDE_EMAIL_ADDRESS + " INT DEFAULT(0), "
                     + ConversationColumns.SMS_SERVICE_CENTER + " TEXT ,"
-                    + ConversationColumns.IS_ENTERPRISE + " INT DEFAULT(0)"
+                    + ConversationColumns.IS_ENTERPRISE + " INT DEFAULT(0), "
+                    + ConversationColumns.CATEGORY + " INT DEFAULT(0), "
+                    + ConversationColumns.CATEGORY_OVERRIDE + " INT DEFAULT(0)"
                     + ");";
 
     private static final String CONVERSATIONS_TABLE_SMS_THREAD_ID_INDEX_SQL =

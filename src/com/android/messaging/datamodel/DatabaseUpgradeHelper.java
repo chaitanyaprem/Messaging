@@ -16,10 +16,13 @@
 package com.android.messaging.datamodel;
 
 import android.content.Context;
+import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 import com.android.messaging.Factory;
 import com.android.messaging.util.Assert;
+import com.android.messaging.util.BuglePrefs;
+import com.android.messaging.util.BuglePrefsKeys;
 import com.android.messaging.util.LogUtil;
 
 public class DatabaseUpgradeHelper {
@@ -50,6 +53,9 @@ public class DatabaseUpgradeHelper {
         }
         if (currentVersion < 3) {
             currentVersion = upgradeToVersion3(db);
+        }
+        if (currentVersion < 4) {
+            currentVersion = upgradeToVersion4(db);
         }
         // Rebuild all the views
         final Context context = Factory.get().getApplicationContext();
@@ -84,6 +90,37 @@ public class DatabaseUpgradeHelper {
         db.execSQL(DatabaseHelper.BACKFILL_SEARCH_PENDING_PARTICIPANTS_SQL);
         LogUtil.i(TAG, "Upgraded database to version 3");
         return 3;
+    }
+
+    private int upgradeToVersion4(final SQLiteDatabase db) {
+        addColumnIfMissing(db, DatabaseHelper.CONVERSATIONS_TABLE,
+                DatabaseHelper.ConversationColumns.CATEGORY, "INT DEFAULT(0)");
+        addColumnIfMissing(db, DatabaseHelper.CONVERSATIONS_TABLE,
+                DatabaseHelper.ConversationColumns.CATEGORY_OVERRIDE, "INT DEFAULT(0)");
+        // Backfill of existing rows happens out-of-band from CategoryBackfiller after the DB is
+        // open — running the classifier here would require touching another database for the
+        // contact-name lookups, which we deliberately avoid on the upgrade thread.
+        BuglePrefs.getApplicationPrefs()
+                .putBoolean(BuglePrefsKeys.CATEGORY_BACKFILL_PENDING, true);
+        LogUtil.i(TAG, "Upgraded database to version 4");
+        return 4;
+    }
+
+    /**
+     * SQLite has no ALTER TABLE ADD COLUMN IF NOT EXISTS, and transitional installs can leave
+     * a column already in place when this migration re-runs. PRAGMA table_info() is the cheap
+     * idempotency check; only ALTER when the column is genuinely missing.
+     */
+    private static void addColumnIfMissing(final SQLiteDatabase db, final String table,
+            final String column, final String columnDefinition) {
+        try (Cursor c = db.rawQuery("PRAGMA table_info(" + table + ")", null)) {
+            while (c != null && c.moveToNext()) {
+                if (column.equalsIgnoreCase(c.getString(1))) {
+                    return;
+                }
+            }
+        }
+        db.execSQL("ALTER TABLE " + table + " ADD COLUMN " + column + " " + columnDefinition);
     }
 
     /**

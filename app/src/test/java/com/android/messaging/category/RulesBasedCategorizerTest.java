@@ -1,0 +1,194 @@
+/*
+ * Copyright (C) 2026 The GrapheneOS Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ */
+package com.android.messaging.category;
+
+import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Pattern-by-pattern coverage of {@link RulesBasedCategorizer}. Each test gives the classifier
+ * a representative real-world SMS body and asserts the expected bucket.
+ *
+ * <p>If a heuristic is added that flips one of these examples, the test must move with it
+ * deliberately — these strings are the contract.
+ */
+public class RulesBasedCategorizerTest {
+
+    private final RulesBasedCategorizer classifier = new RulesBasedCategorizer();
+
+    private MessageCategory classify(final String... bodies) {
+        return classifier.classify(
+                "BNKINF" /* senderDestination */,
+                null /* contactDisplayName */,
+                Arrays.asList(bodies),
+                false /* isGroup */);
+    }
+
+    // -- PERSONAL ------------------------------------------------------------------------------
+
+    @Test
+    public void emptyMessageList_defaultsToPersonal() {
+        assertEquals(MessageCategory.PERSONAL,
+                classifier.classify(null, null, Collections.emptyList(), false));
+    }
+
+    @Test
+    public void groupConversation_alwaysPersonal() {
+        assertEquals(MessageCategory.PERSONAL,
+                classifier.classify("BNKINF", null,
+                        Collections.singletonList("Your OTP is 123456"),
+                        true /* isGroup */));
+    }
+
+    @Test
+    public void contactSender_alwaysPersonal_evenIfContentLooksPromotional() {
+        assertEquals(MessageCategory.PERSONAL,
+                classifier.classify("+15551234567", "Alice Wonderland",
+                        Collections.singletonList("Check this out — 50% off at the store!"),
+                        false));
+    }
+
+    @Test
+    public void plainConversationalText_isPersonal() {
+        assertEquals(MessageCategory.PERSONAL, classify("Hey, are you free this weekend?"));
+    }
+
+    @Test
+    public void shortGreeting_isPersonal() {
+        assertEquals(MessageCategory.PERSONAL, classify("Happy birthday!"));
+    }
+
+    // -- TRANSACTIONS --------------------------------------------------------------------------
+
+    @Test
+    public void otpMessage_isTransaction() {
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Your OTP is 482915. Do not share with anyone."));
+    }
+
+    @Test
+    public void verificationCodeMessage_isTransaction() {
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Verification code: 932184"));
+    }
+
+    @Test
+    public void inrDebitMessage_isTransaction() {
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Rs 5000 debited from A/c XX1234 on 02-Apr. Avl bal Rs 12345."));
+    }
+
+    @Test
+    public void usdChargeMessage_isTransaction() {
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Your card ending 4242 was charged $50.00 at Amazon."));
+    }
+
+    @Test
+    public void inrSymbolCreditMessage_isTransaction() {
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("₹ 1500 credited to your account."));
+    }
+
+    // -- UPDATES -------------------------------------------------------------------------------
+
+    @Test
+    public void outForDeliveryMessage_isUpdate() {
+        assertEquals(MessageCategory.UPDATES,
+                classify("Your package is out for delivery and will arrive today."));
+    }
+
+    @Test
+    public void shippedMessage_isUpdate() {
+        assertEquals(MessageCategory.UPDATES,
+                classify("Your order #A-12345 has been shipped. Tracking number 1Z999."));
+    }
+
+    @Test
+    public void appointmentReminderMessage_isUpdate() {
+        assertEquals(MessageCategory.UPDATES,
+                classify("Reminder: Your appointment is scheduled for tomorrow at 3pm."));
+    }
+
+    @Test
+    public void flightStatusMessage_isUpdate() {
+        assertEquals(MessageCategory.UPDATES,
+                classify("Flight status: On time. Boarding pass attached."));
+    }
+
+    // -- PROMOTIONS ----------------------------------------------------------------------------
+
+    @Test
+    public void percentOffMessage_isPromotion() {
+        assertEquals(MessageCategory.PROMOTIONS,
+                classify("Flash sale: 50% off everything this weekend only!"));
+    }
+
+    @Test
+    public void couponMessage_isPromotion() {
+        assertEquals(MessageCategory.PROMOTIONS,
+                classify("Use coupon code SAVE20 for an exclusive deal."));
+    }
+
+    @Test
+    public void bogoMessage_isPromotion() {
+        assertEquals(MessageCategory.PROMOTIONS,
+                classify("Buy one get one free on all jeans, limited time offer."));
+    }
+
+    // -- SPAM ----------------------------------------------------------------------------------
+
+    @Test
+    public void clickHerePrizeMessage_isSpam() {
+        assertEquals(MessageCategory.SPAM,
+                classify("Congratulations! You have won an iPhone. Click here to claim."));
+    }
+
+    @Test
+    public void replyStopOptOutMessage_isSpam() {
+        assertEquals(MessageCategory.SPAM,
+                classify("Visit our site for great deals. Reply STOP to unsubscribe."));
+    }
+
+    @Test
+    public void urgentAccountCompromisedMessage_isSpam() {
+        assertEquals(MessageCategory.SPAM,
+                classify("URGENT! Your account has been compromised, verify now."));
+    }
+
+    // -- PRIORITY -------------------------------------------------------------------------------
+
+    @Test
+    public void spamSignalBeatsTransactionSignal() {
+        // A scam impersonating a bank: the OTP-looking content shouldn't override the spam flag.
+        assertEquals(MessageCategory.SPAM,
+                classify("URGENT! Your account is suspended, verify with code 123456."));
+    }
+
+    @Test
+    public void transactionBeatsPromotion_whenBothPresent() {
+        // Bank promo: real bank message mentioning a discount. Money trumps marketing.
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Rs 100 cashback credited on your card. 10% off on next purchase."));
+    }
+
+    @Test
+    public void multipleSamplesAreConcatenated() {
+        // No single sample matches, but the combined text does.
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classify("Thanks for shopping with us.",
+                        "Your OTP is 999000 — do not share."));
+    }
+}

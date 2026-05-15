@@ -40,14 +40,18 @@ public final class CategoryBackfiller {
     }
 
     /**
-     * Kicks off a sweep on a background thread if the pending flag is set. Returns immediately
-     * either way.
+     * Kicks off a sweep on a background thread if either (a) the pending flag is set or (b) the
+     * persisted classifier version is older than the running code. Returns immediately either way.
      */
     public static void runIfPending() {
         final BuglePrefs prefs = Factory.get().getApplicationPrefs();
-        if (!prefs.getBoolean(
+        final boolean pending = prefs.getBoolean(
                 BuglePrefsKeys.CATEGORY_BACKFILL_PENDING,
-                BuglePrefsKeys.CATEGORY_BACKFILL_PENDING_DEFAULT)) {
+                BuglePrefsKeys.CATEGORY_BACKFILL_PENDING_DEFAULT);
+        final int storedVersion = prefs.getInt(
+                BuglePrefsKeys.CATEGORY_CLASSIFIER_VERSION,
+                BuglePrefsKeys.CATEGORY_CLASSIFIER_VERSION_DEFAULT);
+        if (!pending && storedVersion >= RulesBasedCategorizer.RULES_VERSION) {
             return;
         }
         final Thread worker = new Thread(CategoryBackfiller::sweep, "CategoryBackfill");
@@ -70,8 +74,10 @@ public final class CategoryBackfiller {
                     db.endTransaction();
                 }
             }
-            Factory.get().getApplicationPrefs()
-                    .putBoolean(BuglePrefsKeys.CATEGORY_BACKFILL_PENDING, false);
+            final BuglePrefs prefs = Factory.get().getApplicationPrefs();
+            prefs.putBoolean(BuglePrefsKeys.CATEGORY_BACKFILL_PENDING, false);
+            prefs.putInt(BuglePrefsKeys.CATEGORY_CLASSIFIER_VERSION,
+                    RulesBasedCategorizer.RULES_VERSION);
             LogUtil.i(TAG, "Category backfill complete: " + ids.size()
                     + " conversations classified in " + (System.currentTimeMillis() - startMs)
                     + " ms");

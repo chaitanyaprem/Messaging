@@ -28,9 +28,23 @@ public class RulesBasedCategorizerTest {
 
     private final RulesBasedCategorizer classifier = new RulesBasedCategorizer();
 
+    /**
+     * Default helper assumes a real (international-format) phone number sender so the
+     * short-code fallback doesn't kick in; tests that care about short-code behaviour use
+     * {@link #classifyFromShortCode} below.
+     */
     private MessageCategory classify(final String... bodies) {
         return classifier.classify(
-                "BNKINF" /* senderDestination */,
+                "+15551234567" /* senderDestination */,
+                null /* contactDisplayName */,
+                Arrays.asList(bodies),
+                false /* isGroup */);
+    }
+
+    private MessageCategory classifyFromShortCode(final String senderDestination,
+            final String... bodies) {
+        return classifier.classify(
+                senderDestination,
                 null /* contactDisplayName */,
                 Arrays.asList(bodies),
                 false /* isGroup */);
@@ -190,5 +204,53 @@ public class RulesBasedCategorizerTest {
         assertEquals(MessageCategory.TRANSACTIONS,
                 classify("Thanks for shopping with us.",
                         "Your OTP is 999000 — do not share."));
+    }
+
+    // -- SHORT-CODE FALLBACK --------------------------------------------------------------------
+    // Senders that aren't real phone numbers shouldn't land in Personal just because their
+    // recent messages happen not to match a keyword pattern.
+
+    @Test
+    public void plainTextFromAlphaShortCode_fallsBackToUpdates() {
+        assertEquals(MessageCategory.UPDATES,
+                classifyFromShortCode("SBIMF",
+                        "NAV of Equity Fund as on date is 250.34"));
+    }
+
+    @Test
+    public void plainTextFromPrefixedShortCode_fallsBackToUpdates() {
+        // Indian DLT-format senders that arrive with a 2-letter operator prefix.
+        assertEquals(MessageCategory.UPDATES,
+                classifyFromShortCode("VK-HPGAS", "Dear customer, your booking is being processed."));
+    }
+
+    @Test
+    public void plainTextFromAllCapsShortCode_fallsBackToUpdates() {
+        assertEquals(MessageCategory.UPDATES,
+                classifyFromShortCode("APOLAB",
+                        "Dear customer, your report is ready for collection."));
+    }
+
+    @Test
+    public void plainTextFromNumericShortCode_fallsBackToUpdates() {
+        // 5-digit US-style short codes are common for transactional notifications.
+        assertEquals(MessageCategory.UPDATES,
+                classifyFromShortCode("32665", "Reply Y to confirm"));
+    }
+
+    @Test
+    public void shortCodeWithTransactionContent_stillTransactions() {
+        // Keyword rules win over the fallback so a clearly transactional short-code message
+        // doesn't slip into Updates.
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classifyFromShortCode("SBIMF", "Dividend Rs 500 credited to your folio."));
+    }
+
+    @Test
+    public void realPhoneNumberWithNeutralText_staysPersonal() {
+        // A full international-format number isn't a short code; without keyword hits it
+        // remains in the Personal bucket.
+        assertEquals(MessageCategory.PERSONAL,
+                classifyFromShortCode("+447700900000", "Heading home, see you soon."));
     }
 }

@@ -91,11 +91,21 @@ public final class CategoryUpdater {
         }
 
         final List<String> samples = readRecentBodies(db, conversationId);
-        final MessageCategory next = categorizer.classify(
-                facts.senderDestination,
-                facts.contactDisplayName,
-                samples,
-                facts.isGroup);
+        // Sender-registry lookup first: when the sender is a TRAI-registered short code with
+        // a category we can infer from its Principal Entity name, that verdict beats anything
+        // the body-text rules might guess. Contacts and groups still short-circuit to Personal
+        // inside the registry path's caller (we don't even look up real phone numbers).
+        MessageCategory next = null;
+        if (!facts.isGroup && facts.contactDisplayName == null) {
+            next = SenderRegistryCategorizer.tryClassify(facts.senderDestination);
+        }
+        if (next == null) {
+            next = categorizer.classify(
+                    facts.senderDestination,
+                    facts.contactDisplayName,
+                    samples,
+                    facts.isGroup);
+        }
 
         if (next.getCode() == facts.currentCategoryCode) {
             return;

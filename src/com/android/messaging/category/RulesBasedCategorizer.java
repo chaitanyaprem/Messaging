@@ -35,7 +35,7 @@ public final class RulesBasedCategorizer implements MessageCategorizer {
      * {@link com.android.messaging.category.CategoryBackfiller} compares this against the value
      * persisted in shared prefs and re-runs the sweep on mismatch.
      */
-    public static final int RULES_VERSION = 3;
+    public static final int RULES_VERSION = 4;
 
     // -- Transactions --------------------------------------------------------------------------
     // OTP / verification codes, account debits/credits, balance alerts, currency amounts.

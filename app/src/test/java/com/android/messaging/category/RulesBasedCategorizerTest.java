@@ -171,8 +171,11 @@ public class RulesBasedCategorizerTest {
     }
 
     @Test
-    public void replyStopOptOutMessage_isSpam() {
-        assertEquals(MessageCategory.SPAM,
+    public void replyStopMarketingMessage_isPromotionNotSpam() {
+        // "Reply STOP to unsubscribe" is a regulatory boilerplate found in legitimate
+        // marketing texts, not a reliable spam signal. The "great deals" cue makes this
+        // a promotion.
+        assertEquals(MessageCategory.PROMOTIONS,
                 classify("Visit our site for great deals. Reply STOP to unsubscribe."));
     }
 
@@ -180,6 +183,24 @@ public class RulesBasedCategorizerTest {
     public void urgentAccountCompromisedMessage_isSpam() {
         assertEquals(MessageCategory.SPAM,
                 classify("URGENT! Your account has been compromised, verify now."));
+    }
+
+    @Test
+    public void hospitalReportLinkWithClickHere_isNotSpam() {
+        // Regression: hospitals, banks and delivery services use "click here to view" all
+        // the time. The phrase alone must not flip the conversation into Spam.
+        assertEquals(MessageCategory.UPDATES,
+                classifyFromShortCode("APOLAB",
+                        "Dear customer, your test report is ready. Click here to view."));
+    }
+
+    @Test
+    public void bankClickHereStatementLink_isNotSpam() {
+        // A bank notification with "click here" plus a currency amount should land in
+        // Transactions, not Spam.
+        assertEquals(MessageCategory.TRANSACTIONS,
+                classifyFromShortCode("HDFCBK",
+                        "Statement: Rs 25000 debited. Click here to view details."));
     }
 
     // -- PRIORITY -------------------------------------------------------------------------------

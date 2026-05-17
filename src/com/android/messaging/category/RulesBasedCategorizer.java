@@ -35,7 +35,7 @@ public final class RulesBasedCategorizer implements MessageCategorizer {
      * {@link com.android.messaging.category.CategoryBackfiller} compares this against the value
      * persisted in shared prefs and re-runs the sweep on mismatch.
      */
-    public static final int RULES_VERSION = 2;
+    public static final int RULES_VERSION = 3;
 
     // -- Transactions --------------------------------------------------------------------------
     // OTP / verification codes, account debits/credits, balance alerts, currency amounts.
@@ -72,27 +72,30 @@ public final class RulesBasedCategorizer implements MessageCategorizer {
             Pattern.CASE_INSENSITIVE);
 
     // -- Promotions -----------------------------------------------------------------------------
-    // Marketing copy: discounts, deals, contests, coupon codes.
+    // Marketing copy: discounts, deals, contests, coupon codes. Singular and plural forms
+    // are accepted for the noun-shaped tokens since marketing copy hops between them freely
+    // ("great deal" / "great deals", "flash sale" / "weekend sales").
     private static final Pattern PROMOTION_PATTERN = Pattern.compile(
             "(\\b\\d{1,3}\\s*%[\\s-]?off\\b|"        // 50% off
                     + "\\bup[\\s-]?to[\\s-]?\\d+\\s*%|"
-                    + "\\b(sale|discount|offer|deal|exclusive|limited[\\s-]?time|"
+                    + "\\b(sales?|discounts?|offers?|deals?|exclusive|limited[\\s-]?time|"
                     + "buy[\\s-]?one[\\s-]?get|bogo|"
-                    + "coupon[\\s-]?code|promo[\\s-]?code|"
-                    + "flash[\\s-]?sale|mega[\\s-]?sale|"
+                    + "coupon[\\s-]?codes?|promo[\\s-]?codes?|"
+                    + "flash[\\s-]?sales?|mega[\\s-]?sales?|"
                     + "save[\\s-]?big|hurry[\\s-]?up|"
                     + "won[\\s-]?(a[\\s-]?)?prize|congratulations[\\s,!]|"
-                    + "cashback|loyalty[\\s-]?points|"
-                    + "membership[\\s-]?renewal)\\b)",
+                    + "cashbacks?|loyalty[\\s-]?points?|"
+                    + "membership[\\s-]?renewals?)\\b)",
             Pattern.CASE_INSENSITIVE);
 
     // -- Spam -----------------------------------------------------------------------------------
-    // Obvious unsolicited / scam patterns. Kept conservative — false positives are worse than
-    // false negatives here, since a Spam-misclassified bank OTP can cost the user real money.
+    // Obvious unsolicited / scam patterns. Kept *highly* conservative: false positives here
+    // are worse than false negatives — a misclassified bank OTP can cost real money, and a
+    // hospital report alert mis-routed to Spam can be missed entirely. We deliberately do
+    // NOT match generic phrases like "click here" or "reply STOP to unsubscribe", both of
+    // which appear in legitimate transactional and marketing messages.
     private static final Pattern SPAM_PATTERN = Pattern.compile(
-            "\\b(click[\\s-]?here[\\s-]?(to|now)|"
-                    + "reply[\\s-]?stop[\\s-]?to[\\s-]?(unsubscribe|opt[\\s-]?out)|"
-                    + "you[\\s-]?have[\\s-]?(won|been[\\s-]?selected)[\\s-]?(an?[\\s-]?)?(iphone|ipad|car|trip|prize)|"
+            "\\b(you[\\s-]?have[\\s-]?(won|been[\\s-]?selected)[\\s-]?(an?[\\s-]?)?(iphone|ipad|car|trip|prize)|"
                     + "claim[\\s-]?(your[\\s-]?)?(prize|reward|bonus)[\\s-]?now|"
                     + "free[\\s-]?(iphone|ipad|gift[\\s-]?card)|"
                     + "urgent[\\s,!:]+[\\s\\S]{0,40}(suspended|compromised|verify))\\b",

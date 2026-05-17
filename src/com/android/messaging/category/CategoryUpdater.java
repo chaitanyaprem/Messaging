@@ -61,6 +61,23 @@ public final class CategoryUpdater {
         maybeRefresh(db, conversationId, DEFAULT_CATEGORIZER);
     }
 
+    /**
+     * Stamps a user-chosen category onto a conversation and sets {@code category_override = 1}
+     * so the automatic classifier won't reshuffle it later. Notifies the conversation list URI
+     * so the chip-filtered view updates immediately.
+     */
+    public static void applyManualOverride(@NonNull final DatabaseWrapper db,
+            @NonNull final String conversationId,
+            @NonNull final MessageCategory category) {
+        final ContentValues values = new ContentValues(2);
+        values.put(ConversationColumns.CATEGORY, category.getCode());
+        values.put(ConversationColumns.CATEGORY_OVERRIDE, 1);
+        db.update(DatabaseHelper.CONVERSATIONS_TABLE, values,
+                ConversationColumns._ID + "=?",
+                new String[] { conversationId });
+        MessagingContentProvider.notifyConversationListChanged();
+    }
+
     /** Test seam — lets unit tests inject a deterministic categorizer. */
     static void maybeRefresh(@NonNull final DatabaseWrapper db,
             @NonNull final String conversationId,

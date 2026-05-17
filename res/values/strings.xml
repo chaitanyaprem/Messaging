@@ -1127,4 +1127,8 @@
     <string name="category_chip_promotions">Promotions</string>
     <string name="category_chip_updates">Updates</string>
     <string name="category_chip_spam">Spam</string>
+
+    <!-- Move-to-category action in the conversation list multi-select menu. -->
+    <string name="action_move_to_category">Move to category</string>
+    <string name="move_to_category_dialog_title">Move to&#8230;</string>
 </resources>

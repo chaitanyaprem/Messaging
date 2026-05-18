@@ -1131,4 +1131,9 @@
     <!-- Move-to-category action in the conversation list multi-select menu. -->
     <string name="action_move_to_category">Move to category</string>
     <string name="move_to_category_dialog_title">Move to&#8230;</string>
+
+    <!-- Notification action labels for OTP copy / message delete. -->
+    <string name="notification_copy_otp">Copy code</string>
+    <string name="notification_delete_message">Delete</string>
+    <string name="otp_code_copied">OTP copied to clipboard</string>
 </resources>

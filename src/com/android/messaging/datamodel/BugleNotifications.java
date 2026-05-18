@@ -457,6 +457,41 @@ public class BugleNotifications {
             notifBuilder.addAction(downloadAction);
         }
 
+        // The notification tag/id pair is what the action receivers need to dismiss the
+        // notification cleanly after the user taps Copy or Delete; compute them once here so
+        // we can reuse for both actions and later when we actually post the notification.
+        final int notificationType = state.mType;
+        final String notificationTag =
+                buildNotificationTag(notificationType, conversationId);
+
+        // OTP / verification code: surface a Copy action when one is detected in the latest
+        // message body. Skipped silently when no code is found.
+        final CharSequence latestText = conversation.getLatestMessageText();
+        final String otpCode = latestText == null
+                ? null
+                : com.android.messaging.otp.OtpExtractor.extract(latestText.toString());
+        if (otpCode != null) {
+            final PendingIntent copyIntent = UIIntents.get()
+                    .getPendingIntentForCopyingOtp(context, conversationId, otpCode,
+                            notificationType, notificationTag);
+            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
+                    context.getString(R.string.notification_copy_otp), copyIntent).build());
+        }
+
+        // Delete: always available on incoming-SMS notifications and refers to the latest
+        // message in the conversation (which is what the notification is announcing). The
+        // receiver dismisses the notification after deleting; if other unread messages exist
+        // in the conversation the next notification refresh will re-post a notification with
+        // those remaining messages.
+        if (messageId != null) {
+            final PendingIntent deleteIntent = UIIntents.get()
+                    .getPendingIntentForDeletingMessageFromNotification(context, conversationId,
+                            messageId, notificationType, notificationTag);
+            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
+                    context.getString(R.string.notification_delete_message), deleteIntent)
+                    .build());
+        }
+
         notifBuilder
                 .setSmallIcon(R.drawable.ic_sms_light)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -467,18 +502,16 @@ public class BugleNotifications {
         // Mark the notification as finished
         state.mCanceled = true;
 
-        final int type = state.mType;
         final NotificationManagerCompat notificationManager =
                 NotificationManagerCompat.from(Factory.get().getApplicationContext());
-        final String notificationTag = buildNotificationTag(type, conversationId);
 
         Notification notification = notifBuilder.build();
         notification.flags |= Notification.FLAG_AUTO_CANCEL;
 
-        notificationManager.notify(notificationTag, type, notification);
+        notificationManager.notify(notificationTag, notificationType, notification);
 
         LogUtil.i(TAG, "Notifying for conversation " + conversationId + "; "
-                + "tag = " + notificationTag + ", type = " + type);
+                + "tag = " + notificationTag + ", type = " + notificationType);
     }
 
     /**

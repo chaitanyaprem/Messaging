@@ -434,6 +434,14 @@
         <receiver android:name=".receiver.ConversationReadReceiver"
             android:exported="false" />
 
+        <!-- Notification action: copy an OTP/verification code to the system clipboard -->
+        <receiver android:name=".receiver.OtpCopyReceiver"
+            android:exported="false" />
+
+        <!-- Notification action: delete the message the notification refers to -->
+        <receiver android:name=".receiver.MessageDeleteReceiver"
+            android:exported="false" />
+
         <!-- Broadcast receiver that will be notified for ActionService alarms. -->
         <receiver
             android:name=".datamodel.action.ActionServiceImpl$PendingActionReceiver"

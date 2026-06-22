@@ -21,7 +21,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.content.UriMatcher;
 import android.database.Cursor;
-import io.requery.android.database.sqlite.SQLiteQueryBuilder;
+import android.database.sqlite.SQLiteQueryBuilder;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;

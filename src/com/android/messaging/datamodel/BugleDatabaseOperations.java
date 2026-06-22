@@ -20,7 +20,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDoneException;
-import io.requery.android.database.sqlite.SQLiteStatement;
+import android.database.sqlite.SQLiteStatement;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;

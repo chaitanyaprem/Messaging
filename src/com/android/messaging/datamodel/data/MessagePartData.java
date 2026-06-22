@@ -18,7 +18,7 @@ package com.android.messaging.datamodel.data;
 
 import android.content.ContentValues;
 import android.database.Cursor;
-import io.requery.android.database.sqlite.SQLiteStatement;
+import android.database.sqlite.SQLiteStatement;
 import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Parcel;

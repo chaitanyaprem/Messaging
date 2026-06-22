@@ -17,7 +17,7 @@
 package com.android.messaging.datamodel;
 
 import android.content.Context;
-import io.requery.android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.text.TextUtils;
 

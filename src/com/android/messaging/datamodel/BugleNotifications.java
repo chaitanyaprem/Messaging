@@ -416,12 +416,42 @@ public class BugleNotifications {
             setUpShortcuts(context, conversation, notifBuilder, latestPerson);
         }
 
-        final PendingIntent markAsReadPendingIntent =
-                UIIntents.get().getPendingIntentForMarkingAsRead(context, conversationId);
-        final NotificationCompat.Action markAsReadActionBuilder =
-                new NotificationCompat.Action.Builder(0,
-                        context.getString(R.string.mark_as_read), markAsReadPendingIntent).build();
-        notifBuilder.addAction(markAsReadActionBuilder);
+        // Compute the (tag, id) pair up-front so the OTP/delete action receivers can use it
+        // to dismiss the notification after firing.
+        final int notificationType = state.mType;
+        final String notificationTag =
+                buildNotificationTag(notificationType, conversationId);
+
+        // Action order matters: Android typically renders the first 2–3 actions in the
+        // collapsed notification, hiding the rest behind an expand affordance. We put Copy
+        // code FIRST when an OTP is detected so the most time-critical action is always
+        // visible without expanding the notification.
+        final String messageId = conversation.getLatestMessageId();
+        final CharSequence latestText = conversation.getLatestMessageText();
+        final String otpCode = latestText == null
+                ? null
+                : com.android.messaging.otp.OtpExtractor.extract(latestText.toString());
+        if (otpCode != null) {
+            final PendingIntent copyIntent = UIIntents.get()
+                    .getPendingIntentForCopyingOtp(context, conversationId, otpCode,
+                            notificationType, notificationTag);
+            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
+                    context.getString(R.string.notification_copy_otp), copyIntent).build());
+        }
+
+        // Mark as read is suppressed for OTP-bearing notifications: the system collapses to
+        // ~3 visible actions, so adding it would push Delete out of view. After a Copy or
+        // Delete tap our receivers dismiss the notification anyway, so the user never needs
+        // a separate "mark read" affordance for these short-lived codes.
+        if (otpCode == null) {
+            final PendingIntent markAsReadPendingIntent =
+                    UIIntents.get().getPendingIntentForMarkingAsRead(context, conversationId);
+            final NotificationCompat.Action markAsReadActionBuilder =
+                    new NotificationCompat.Action.Builder(0,
+                            context.getString(R.string.mark_as_read),
+                            markAsReadPendingIntent).build();
+            notifBuilder.addAction(markAsReadActionBuilder);
+        }
 
         final String selfId = conversation.mSelfParticipantId;
 
@@ -444,7 +474,6 @@ public class BugleNotifications {
         replyActionBuilder.addRemoteInput(remoteInput);
         notifBuilder.addAction(replyActionBuilder.build());
 
-        final String messageId = conversation.getLatestMessageId();
         if (conversation.getDoesLatestMessageNeedDownload() && messageId != null) {
             final PendingIntent downloadPendingIntent =
                     RedownloadMmsAction.getPendingIntentForRedownloadMms(context, messageId);
@@ -455,27 +484,6 @@ public class BugleNotifications {
                             downloadPendingIntent);
             final NotificationCompat.Action downloadAction = actionBuilder.build();
             notifBuilder.addAction(downloadAction);
-        }
-
-        // The notification tag/id pair is what the action receivers need to dismiss the
-        // notification cleanly after the user taps Copy or Delete; compute them once here so
-        // we can reuse for both actions and later when we actually post the notification.
-        final int notificationType = state.mType;
-        final String notificationTag =
-                buildNotificationTag(notificationType, conversationId);
-
-        // OTP / verification code: surface a Copy action when one is detected in the latest
-        // message body. Skipped silently when no code is found.
-        final CharSequence latestText = conversation.getLatestMessageText();
-        final String otpCode = latestText == null
-                ? null
-                : com.android.messaging.otp.OtpExtractor.extract(latestText.toString());
-        if (otpCode != null) {
-            final PendingIntent copyIntent = UIIntents.get()
-                    .getPendingIntentForCopyingOtp(context, conversationId, otpCode,
-                            notificationType, notificationTag);
-            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
-                    context.getString(R.string.notification_copy_otp), copyIntent).build());
         }
 
         // Delete: always available on incoming-SMS notifications and refers to the latest

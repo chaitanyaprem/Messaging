@@ -25,5 +25,5 @@
         android:padding="32dp"
         android:text="@string/search_prompt"
         android:textAppearance="?android:attr/textAppearanceListItem"
-        android:textColor="@color/settings_list_text_secondary" />
+        android:textColor="@color/conversation_list_details" />
 </FrameLayout>

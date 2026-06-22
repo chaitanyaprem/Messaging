@@ -126,6 +126,15 @@ public abstract class UIIntents {
             final String conversationId, final MessageData draft, final Bundle activityOptions,
             final boolean withCustomTransition);
 
+    /**
+     * Launch a conversation scrolled to a specific message position. {@code messagePosition}
+     * is the index of the message in the conversation cursor counted from oldest (0) to
+     * newest (count-1), matching the semantics of {@link #UI_INTENT_EXTRA_MESSAGE_POSITION}
+     * that the conversation screen already consumes for widget-click navigation.
+     */
+    public abstract void launchConversationActivityAtMessagePosition(Context context,
+            String conversationId, int messagePosition);
+
 
     /**
      * Launch an activity to show conversation with conversation list in back stack.

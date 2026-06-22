@@ -9,6 +9,7 @@
  */
 package com.android.messaging.ui.search;
 
+import android.database.Cursor;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -23,6 +24,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.android.messaging.R;
+import com.android.messaging.datamodel.DataModel;
+import com.android.messaging.datamodel.DatabaseHelper;
+import com.android.messaging.datamodel.DatabaseHelper.MessageColumns;
+import com.android.messaging.datamodel.DatabaseWrapper;
+import com.android.messaging.datamodel.data.MessageData;
 import com.android.messaging.ui.BugleActionBarActivity;
 import com.android.messaging.ui.UIIntents;
 
@@ -191,6 +197,55 @@ public class MessageSearchActivity extends BugleActionBarActivity {
     }
 
     private void onResultClicked(final MessageSearchResult result) {
-        UIIntents.get().launchConversationActivity(this, result.conversationId, null);
+        if (result.matchedMessageId == null) {
+            // Participant-only match — no specific message to land on.
+            UIIntents.get().launchConversationActivity(this, result.conversationId, null);
+            return;
+        }
+        // Resolve the matched message to its position in the conversation cursor on a worker
+        // thread so we don't touch the DB from the click handler. The conversation activity is
+        // launched once we have the position; result.messageReceivedTimestamp is the matched
+        // message's own timestamp for body hits, so a COUNT of older non-draft messages in the
+        // same conversation gives the matching cursor index.
+        final String conversationId = result.conversationId;
+        final long matchedTimestamp = result.messageReceivedTimestamp;
+        mSearchExecutor.execute(() -> {
+            final int position = computeMessagePosition(conversationId, matchedTimestamp);
+            mMainHandler.post(() -> {
+                if (position < 0) {
+                    UIIntents.get().launchConversationActivity(
+                            this, conversationId, null);
+                } else {
+                    UIIntents.get().launchConversationActivityAtMessagePosition(
+                            this, conversationId, position);
+                }
+            });
+        });
+    }
+
+    /**
+     * Cursor index (0 = oldest) of the message identified by {@code matchedTimestamp} within
+     * its conversation. Mirrors the WHERE clause of {@code CONVERSATION_MESSAGES_QUERY} so the
+     * count matches what the activity will actually display: drafts excluded, ordered ascending
+     * by received_timestamp.
+     */
+    private static int computeMessagePosition(final String conversationId,
+            final long matchedTimestamp) {
+        final DatabaseWrapper db = DataModel.get().getDatabase();
+        try (Cursor c = db.rawQuery(
+                "SELECT COUNT(*) FROM " + DatabaseHelper.MESSAGES_TABLE
+                        + " WHERE " + MessageColumns.CONVERSATION_ID + " = ?"
+                        + " AND " + MessageColumns.STATUS + " <> "
+                        + MessageData.BUGLE_STATUS_OUTGOING_DRAFT
+                        + " AND " + MessageColumns.RECEIVED_TIMESTAMP + " < ?",
+                new String[] {
+                        conversationId,
+                        Long.toString(matchedTimestamp),
+                })) {
+            if (c == null || !c.moveToFirst()) {
+                return -1;
+            }
+            return c.getInt(0);
+        }
     }
 }

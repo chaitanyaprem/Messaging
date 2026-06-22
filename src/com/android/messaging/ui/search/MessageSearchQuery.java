@@ -59,7 +59,8 @@ public final class MessageSearchQuery {
                     + "c." + ConversationColumns.ICON + " AS conversation_icon, "
                     + "m." + MessageColumns.RECEIVED_TIMESTAMP + " AS received_timestamp, "
                     + "snippet(" + DatabaseHelper.MESSAGES_FTS_TABLE + ", 0, ?, ?, ?, 8) "
-                    + "AS body_snippet "
+                    + "AS body_snippet, "
+                    + "m." + MessageColumns._ID + " AS matched_message_id "
                     + "FROM " + DatabaseHelper.MESSAGES_FTS_TABLE + " f "
                     + "INNER JOIN " + DatabaseHelper.PARTS_TABLE + " p "
                     + " ON p." + PartColumns._ID + " = f.rowid "
@@ -85,7 +86,8 @@ public final class MessageSearchQuery {
                     + "COALESCE(NULLIF(p." + ParticipantColumns.FULL_NAME + ", ''), "
                     + "p." + ParticipantColumns.SEND_DESTINATION + ", "
                     + "p." + ParticipantColumns.NORMALIZED_DESTINATION + ", '') "
-                    + "AS body_snippet "
+                    + "AS body_snippet, "
+                    + "NULL AS matched_message_id "
                     + "FROM " + DatabaseHelper.PARTICIPANTS_FTS_TABLE + " pf "
                     + "INNER JOIN " + DatabaseHelper.CONVERSATION_PARTICIPANTS_TABLE + " cp "
                     + " ON cp." + ConversationParticipantsColumns.PARTICIPANT_ID + " = pf.rowid "
@@ -191,6 +193,7 @@ public final class MessageSearchQuery {
         final int colConvIcon = c.getColumnIndexOrThrow("conversation_icon");
         final int colTs = c.getColumnIndexOrThrow("received_timestamp");
         final int colSnip = c.getColumnIndexOrThrow("body_snippet");
+        final int colMatchMsg = c.getColumnIndexOrThrow("matched_message_id");
 
         while (c.moveToNext() && byConv.size() < limit) {
             final String convId = c.getString(colConvId);
@@ -202,7 +205,8 @@ public final class MessageSearchQuery {
                     c.getString(colConvName),
                     c.getString(colConvIcon),
                     c.getLong(colTs),
-                    c.getString(colSnip)));
+                    c.getString(colSnip),
+                    c.isNull(colMatchMsg) ? null : c.getString(colMatchMsg)));
             if (RESULTS_PER_CONVERSATION != 1) {
                 // Reserved for future tuning; current spec is one row per conversation.
                 throw new IllegalStateException(String.format(Locale.ROOT,

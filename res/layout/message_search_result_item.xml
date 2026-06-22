@@ -39,7 +39,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
             android:textAppearance="?android:attr/textAppearanceSmall"
-            android:textColor="@color/settings_list_text_secondary" />
+            android:textColor="@color/conversation_list_details" />
     </LinearLayout>
 
     <TextView
@@ -50,5 +50,5 @@
         android:maxLines="2"
         android:ellipsize="end"
         android:textAppearance="?android:attr/textAppearanceListItemSecondary"
-        android:textColor="@color/settings_list_text_secondary" />
+        android:textColor="@color/conversation_list_details" />
 </LinearLayout>

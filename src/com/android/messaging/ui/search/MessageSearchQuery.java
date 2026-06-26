@@ -74,7 +74,9 @@ public final class MessageSearchQuery {
         if (userInput == null) {
             return null;
         }
-        final String trimmed = userInput.trim();
+        // Lowercase with ROOT locale so we match what the unicode61 tokenizer stored at index
+        // time. ROOT avoids Turkish-style "I → ı" surprises that would break ASCII queries.
+        final String trimmed = userInput.trim().toLowerCase(Locale.ROOT);
         if (trimmed.length() < MIN_QUERY_LENGTH) {
             return null;
         }

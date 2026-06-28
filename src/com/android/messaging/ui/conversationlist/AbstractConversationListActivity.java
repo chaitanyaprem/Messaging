@@ -27,6 +27,9 @@ import androidx.annotation.NonNull;
 import android.view.View;
 
 import com.android.messaging.R;
+import com.android.messaging.category.CategoryUpdater;
+import com.android.messaging.category.MessageCategory;
+import com.android.messaging.datamodel.DataModel;
 import com.android.messaging.datamodel.action.DeleteConversationAction;
 import com.android.messaging.datamodel.action.UpdateConversationArchiveStatusAction;
 import com.android.messaging.datamodel.action.UpdateDestinationBlockedAction;
@@ -238,6 +241,66 @@ public abstract class AbstractConversationListActivity  extends BugleActionBarAc
                 })
                 .create()
                 .show();
+    }
+
+    @Override
+    public void onActionBarMoveToCategory(final Collection<SelectedConversation> conversations) {
+        if (conversations.isEmpty()) {
+            return;
+        }
+        // Snapshot the selected ids before opening the dialog — selection state can be
+        // disturbed by the dialog presenting.
+        final ArrayList<String> conversationIds = new ArrayList<>(conversations.size());
+        for (final SelectedConversation c : conversations) {
+            conversationIds.add(c.conversationId);
+        }
+        final CharSequence[] labels = new CharSequence[] {
+                getString(R.string.category_chip_personal),
+                getString(R.string.category_chip_transactions),
+                getString(R.string.category_chip_promotions),
+                getString(R.string.category_chip_updates),
+                getString(R.string.category_chip_spam),
+        };
+        final MessageCategory[] categories = new MessageCategory[] {
+                MessageCategory.PERSONAL,
+                MessageCategory.TRANSACTIONS,
+                MessageCategory.PROMOTIONS,
+                MessageCategory.UPDATES,
+                MessageCategory.SPAM,
+        };
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.move_to_category_dialog_title)
+                .setItems(labels, new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(final DialogInterface dialog, final int which) {
+                        applyCategoryOverride(conversationIds, categories[which]);
+                        exitMultiSelectState();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    /**
+     * Writes the user-chosen category to each selected conversation on a background thread —
+     * a single transaction so the loader gets one notify cycle even for bulk moves.
+     */
+    private void applyCategoryOverride(final ArrayList<String> conversationIds,
+            final MessageCategory category) {
+        final Thread worker = new Thread(() -> {
+            final var db = DataModel.get().getDatabase();
+            db.beginTransaction();
+            try {
+                for (final String id : conversationIds) {
+                    CategoryUpdater.applyManualOverride(db, id, category);
+                }
+                db.setTransactionSuccessful();
+            } finally {
+                db.endTransaction();
+            }
+        }, "CategoryOverride");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     @Override

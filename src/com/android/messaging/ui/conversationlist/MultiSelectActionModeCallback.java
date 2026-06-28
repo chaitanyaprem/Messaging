@@ -40,6 +40,7 @@ public class MultiSelectActionModeCallback implements Callback {
                 boolean isToArchive);
         void onActionBarAddContact(final SelectedConversation conversation);
         void onActionBarBlock(final SelectedConversation conversation);
+        void onActionBarMoveToCategory(Collection<SelectedConversation> conversations);
         void onActionBarHome();
     }
 
@@ -119,6 +120,10 @@ public class MultiSelectActionModeCallback implements Callback {
         if (itemId == R.id.action_block) {
             Assert.isTrue(mSelectedConversations.size() == 1);
             mListener.onActionBarBlock(mSelectedConversations.valueAt(0));
+            return true;
+        }
+        if (itemId == R.id.action_move_to_category) {
+            mListener.onActionBarMoveToCategory(mSelectedConversations.values());
             return true;
         }
         if (itemId == android.R.id.home) {

@@ -26,6 +26,7 @@ import android.os.ParcelFileDescriptor;
 import android.text.TextUtils;
 
 import com.android.messaging.Factory;
+import com.android.messaging.category.CategoryUpdater;
 import com.android.messaging.datamodel.DatabaseHelper.ConversationColumns;
 import com.android.messaging.datamodel.DatabaseHelper.ConversationParticipantsColumns;
 import com.android.messaging.datamodel.DatabaseHelper.MessageColumns;
@@ -1177,6 +1178,10 @@ public class BugleDatabaseOperations {
             messagePart.updateMessageId(messageId);
             insertNewMessagePartInTransaction(dbWrapper, messagePart, message.getConversationId());
         }
+
+        // Re-evaluate the conversation's category in light of the new message body. Skipped
+        // automatically when the user has manually overridden it.
+        CategoryUpdater.maybeRefresh(dbWrapper, message.getConversationId());
     }
 
     /**

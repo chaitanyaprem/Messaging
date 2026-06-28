@@ -130,4 +130,8 @@
     <color name="fastscroll_preview_text_color">#ffffff</color>
 
     <color name="google_gray">#F1F1F1</color>
+
+    <!-- Category filter chip palette. -->
+    <color name="category_chip_stroke">#1F000000</color>
+    <color name="category_chip_text_unselected">#DE000000</color>
 </resources>

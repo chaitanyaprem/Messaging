@@ -39,10 +39,17 @@ import android.view.ViewGroup.MarginLayoutParams;
 import android.view.ViewPropertyAnimator;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.AbsListView;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import com.android.messaging.R;
 import com.android.messaging.annotation.VisibleForAnimation;
+import com.android.messaging.category.MessageCategory;
 import com.android.messaging.datamodel.DataModel;
 import com.android.messaging.datamodel.binding.Binding;
 import com.android.messaging.datamodel.binding.BindingBase;
@@ -234,6 +241,10 @@ public class ConversationListFragment extends Fragment implements ConversationLi
         }
         ViewCompat.setTransitionName(mStartNewConversationButton, BugleAnimationTags.TAG_FABICON);
 
+        // Category filter chips above the recycler. Hidden in archive mode, where filtering by
+        // category isn't useful: archived threads have already been triaged.
+        setupCategoryChips(rootView);
+
         // The root view has a non-null background, which by default is deemed by the framework
         // to be a "transition group," where all child views are animated together during an
         // activity transition. However, we want each individual items in the recycler view to
@@ -242,6 +253,63 @@ public class ConversationListFragment extends Fragment implements ConversationLi
 
         setHasOptionsMenu(true);
         return rootView;
+    }
+
+    private void setupCategoryChips(final ViewGroup rootView) {
+        final HorizontalScrollView scroll = (HorizontalScrollView)
+                rootView.findViewById(R.id.category_chip_scroll);
+        if (scroll == null) {
+            return;
+        }
+        if (mArchiveMode || mForwardMessageMode) {
+            scroll.setVisibility(View.GONE);
+            return;
+        }
+        final LinearLayout row = (LinearLayout) rootView.findViewById(R.id.category_chip_row);
+        if (row == null) {
+            return;
+        }
+        row.removeAllViews();
+        addCategoryChip(row, R.string.category_chip_all, null);
+        addCategoryChip(row, R.string.category_chip_personal, MessageCategory.PERSONAL);
+        addCategoryChip(row, R.string.category_chip_transactions, MessageCategory.TRANSACTIONS);
+        addCategoryChip(row, R.string.category_chip_promotions, MessageCategory.PROMOTIONS);
+        addCategoryChip(row, R.string.category_chip_updates, MessageCategory.UPDATES);
+        addCategoryChip(row, R.string.category_chip_spam, MessageCategory.SPAM);
+        // First chip is "All" — selected by default to match the initial cursor state.
+        if (row.getChildCount() > 0) {
+            row.getChildAt(0).setSelected(true);
+        }
+    }
+
+    private void addCategoryChip(final LinearLayout row, @StringRes final int labelRes,
+            @Nullable final MessageCategory category) {
+        final Context context = row.getContext();
+        final TextView chip = new TextView(context);
+        chip.setText(labelRes);
+        chip.setTextSize(14f);
+        chip.setBackgroundResource(R.drawable.category_chip_background);
+        chip.setTextColor(context.getResources().getColorStateList(R.color.category_chip_text));
+        final int padH = (int) (16 * context.getResources().getDisplayMetrics().density);
+        final int padV = (int) (6 * context.getResources().getDisplayMetrics().density);
+        chip.setPadding(padH, padV, padH, padV);
+        final LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = (int) (8 * context.getResources().getDisplayMetrics().density);
+        chip.setLayoutParams(lp);
+        chip.setOnClickListener(v -> onCategoryChipClicked(row, chip, category));
+        row.addView(chip);
+    }
+
+    private void onCategoryChipClicked(final LinearLayout row, final View clicked,
+            @Nullable final MessageCategory category) {
+        for (int i = 0; i < row.getChildCount(); i++) {
+            row.getChildAt(i).setSelected(row.getChildAt(i) == clicked);
+        }
+        final ConversationListData data = mListBinding.getData();
+        if (data != null) {
+            data.setCategoryFilter(category);
+        }
     }
 
     @Override

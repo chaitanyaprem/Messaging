@@ -48,4 +48,9 @@
         android:orderInCategory="100"
         android:title="@string/action_block"
         appcompat:showAsAction="collapseActionView|always"/>
+    <item
+        android:id="@+id/action_move_to_category"
+        android:orderInCategory="110"
+        android:title="@string/action_move_to_category"
+        appcompat:showAsAction="never"/>
 </menu>

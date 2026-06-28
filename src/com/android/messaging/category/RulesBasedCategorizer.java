@@ -1,0 +1,209 @@
+/*
+ * Copyright (C) 2026 The GrapheneOS Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ */
+package com.android.messaging.category;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import java.util.List;
+import java.util.regex.Pattern;
+
+/**
+ * Pattern-based first pass at message categorization.
+ *
+ * <p>The rules look at the most recent message body texts and check them against a small set
+ * of pre-compiled regex patterns per bucket. Buckets are evaluated in priority order
+ * (spam &gt; transactions &gt; updates &gt; promotions); the first bucket whose pattern fires
+ * wins. Conversations with a resolved contact name or with multiple participants are kept in
+ * {@link MessageCategory#PERSONAL} regardless of content — friends sometimes paste a
+ * coupon code at us, and we don't want that to evict the thread from the personal bucket.
+ *
+ * <p>Patterns are word-boundary-aware where appropriate so a bank message containing "OTP"
+ * doesn't get out-matched by a friend whose surname happens to contain "otp" as a substring.
+ */
+public final class RulesBasedCategorizer implements MessageCategorizer {
+
+    /**
+     * Bumped whenever the rules below change in a way that could change a prior verdict.
+     * {@link com.android.messaging.category.CategoryBackfiller} compares this against the value
+     * persisted in shared prefs and re-runs the sweep on mismatch.
+     */
+    public static final int RULES_VERSION = 4;
+
+    // -- Transactions --------------------------------------------------------------------------
+    // OTP / verification codes, account debits/credits, balance alerts, currency amounts.
+    private static final Pattern TRANSACTION_PATTERN = Pattern.compile(
+            "\\b(otp|one[\\s-]?time[\\s-]?(password|code|pin)|"
+                    + "verification[\\s-]?code|verify[\\s-]?(your[\\s-]?)?code|"
+                    + "auth(entication)?[\\s-]?code|security[\\s-]?code|"
+                    + "your[\\s-]?code[\\s:]|"
+                    + "debited|credited|deducted|transferred|"
+                    + "transaction|txn|"
+                    + "balance|bal[\\s.:]|a/?c[\\s\\.]|account[\\s\\.](ending|number|balance)|"
+                    + "card[\\s\\.]ending|card[\\s\\.]ending[\\s\\.]in|"
+                    + "(inr|usd|eur|gbp|aud|cad)[\\s\\.]?\\d|"
+                    + "rs\\.?[\\s]?\\d|"
+                    + "\\u20b9[\\s]?\\d|"          // INR symbol
+                    + "\\$[\\s]?\\d{2,}|"          // dollar amount (2+ digits to avoid $5)
+                    + "\\u20ac[\\s]?\\d|"          // euro symbol
+                    + "\\u00a3[\\s]?\\d)\\b",      // pound symbol
+            Pattern.CASE_INSENSITIVE);
+
+    // -- Updates --------------------------------------------------------------------------------
+    // Shipping, deliveries, appointments, bookings.
+    private static final Pattern UPDATE_PATTERN = Pattern.compile(
+            "\\b(out[\\s-]?for[\\s-]?delivery|"
+                    + "shipped|dispatched|in[\\s-]?transit|"
+                    + "(has[\\s-]?been[\\s-]?)?delivered|"
+                    + "tracking[\\s-]?(number|id|code)?|"
+                    + "your[\\s-]?(order|package|parcel|shipment)|order[\\s-]?#|"
+                    + "appointment|booking[\\s-]?(confirmed|cancelled|id)|"
+                    + "scheduled[\\s-]?for|reminder[\\s:]|"
+                    + "flight[\\s-]?(status|delayed|cancelled|on[\\s-]?time)|"
+                    + "pnr|boarding[\\s-]?pass|"
+                    + "arrived|expected[\\s-]?(delivery|arrival))\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    // -- Promotions -----------------------------------------------------------------------------
+    // Marketing copy: discounts, deals, contests, coupon codes. Singular and plural forms
+    // are accepted for the noun-shaped tokens since marketing copy hops between them freely
+    // ("great deal" / "great deals", "flash sale" / "weekend sales").
+    private static final Pattern PROMOTION_PATTERN = Pattern.compile(
+            "(\\b\\d{1,3}\\s*%[\\s-]?off\\b|"        // 50% off
+                    + "\\bup[\\s-]?to[\\s-]?\\d+\\s*%|"
+                    + "\\b(sales?|discounts?|offers?|deals?|exclusive|limited[\\s-]?time|"
+                    + "buy[\\s-]?one[\\s-]?get|bogo|"
+                    + "coupon[\\s-]?codes?|promo[\\s-]?codes?|"
+                    + "flash[\\s-]?sales?|mega[\\s-]?sales?|"
+                    + "save[\\s-]?big|hurry[\\s-]?up|"
+                    + "won[\\s-]?(a[\\s-]?)?prize|congratulations[\\s,!]|"
+                    + "cashbacks?|loyalty[\\s-]?points?|"
+                    + "membership[\\s-]?renewals?)\\b)",
+            Pattern.CASE_INSENSITIVE);
+
+    // -- Spam -----------------------------------------------------------------------------------
+    // Obvious unsolicited / scam patterns. Kept *highly* conservative: false positives here
+    // are worse than false negatives — a misclassified bank OTP can cost real money, and a
+    // hospital report alert mis-routed to Spam can be missed entirely. We deliberately do
+    // NOT match generic phrases like "click here" or "reply STOP to unsubscribe", both of
+    // which appear in legitimate transactional and marketing messages.
+    private static final Pattern SPAM_PATTERN = Pattern.compile(
+            "\\b(you[\\s-]?have[\\s-]?(won|been[\\s-]?selected)[\\s-]?(an?[\\s-]?)?(iphone|ipad|car|trip|prize)|"
+                    + "claim[\\s-]?(your[\\s-]?)?(prize|reward|bonus)[\\s-]?now|"
+                    + "free[\\s-]?(iphone|ipad|gift[\\s-]?card)|"
+                    + "urgent[\\s,!:]+[\\s\\S]{0,40}(suspended|compromised|verify))\\b",
+            Pattern.CASE_INSENSITIVE);
+
+    // A purely numeric sender shorter than this is treated as a short code rather than a phone
+    // number. Real phone numbers (national or international) have 8+ digits after stripping the
+    // leading '+'.
+    private static final int MAX_NUMERIC_SHORT_CODE_DIGITS = 7;
+
+    @NonNull
+    @Override
+    public MessageCategory classify(@Nullable final String senderDestination,
+                                    @Nullable final String contactDisplayName,
+                                    @NonNull final List<String> sampleMessageTexts,
+                                    final boolean isGroup) {
+        if (isGroup) {
+            return MessageCategory.PERSONAL;
+        }
+        if (contactDisplayName != null && !contactDisplayName.trim().isEmpty()) {
+            // The sender is in the user's contacts. Even if the latest message superficially
+            // matches a promo regex, the relationship dominates.
+            return MessageCategory.PERSONAL;
+        }
+        if (sampleMessageTexts.isEmpty()) {
+            return MessageCategory.PERSONAL;
+        }
+
+        // Concatenate samples so a single classify() call sees the conversation's "feel" — a
+        // single OTP texted to your friend's number shouldn't outweigh ten other personal lines.
+        final StringBuilder combined = new StringBuilder();
+        for (final String text : sampleMessageTexts) {
+            if (text == null) {
+                continue;
+            }
+            combined.append(text).append('\n');
+        }
+        final String haystack = combined.toString();
+        if (haystack.isEmpty()) {
+            return MessageCategory.PERSONAL;
+        }
+
+        if (SPAM_PATTERN.matcher(haystack).find()) {
+            return MessageCategory.SPAM;
+        }
+        if (TRANSACTION_PATTERN.matcher(haystack).find()) {
+            return MessageCategory.TRANSACTIONS;
+        }
+        if (UPDATE_PATTERN.matcher(haystack).find()) {
+            return MessageCategory.UPDATES;
+        }
+        if (PROMOTION_PATTERN.matcher(haystack).find()) {
+            return MessageCategory.PROMOTIONS;
+        }
+        // No keyword pattern fired. If the sender is clearly automated (alphanumeric short
+        // code, or numeric code shorter than a real phone number), the conversation still
+        // doesn't belong in Personal — fall back to Updates as a neutral catch-all.
+        if (isShortCodeSender(senderDestination)) {
+            return MessageCategory.UPDATES;
+        }
+        return MessageCategory.PERSONAL;
+    }
+
+    /**
+     * Best-effort detection that a sender destination identifies an automated sender (SMS short
+     * code, operator-prefixed sender ID, etc.) rather than a real phone number. Catches both
+     * pure-letter codes like {@code HPGAS} and operator-prefixed forms like {@code VK-HDFCBK}
+     * that some carriers prepend, while still treating actual international numbers (which
+     * are all digits after the leading {@code +}) as personal candidates.
+     */
+    private static boolean isShortCodeSender(@Nullable final String senderDestination) {
+        if (senderDestination == null) {
+            return false;
+        }
+        String d = senderDestination.trim();
+        if (d.isEmpty()) {
+            return false;
+        }
+        if (d.charAt(0) == '+') {
+            d = d.substring(1);
+        }
+        // Strip "XX-" operator/route prefixes (Indian DLT format puts e.g. "VK-" before the
+        // 6-char sender ID; some carriers use "AD-", "TM-", "MD-" etc.).
+        if (d.length() > 3 && d.charAt(2) == '-'
+                && Character.isLetter(d.charAt(0))
+                && Character.isLetter(d.charAt(1))) {
+            d = d.substring(3);
+        }
+        if (d.isEmpty()) {
+            return false;
+        }
+        // Any letter remaining → not a phone number, so by elimination a short code / sender ID.
+        for (int i = 0; i < d.length(); i++) {
+            if (Character.isLetter(d.charAt(i))) {
+                return true;
+            }
+        }
+        // All digits — short codes are short. Real phone numbers (NANP, E.164) are 8+ digits.
+        return d.length() > 0 && d.length() <= MAX_NUMERIC_SHORT_CODE_DIGITS
+                && allDigits(d);
+    }
+
+    private static boolean allDigits(final String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (!Character.isDigit(s.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+}

@@ -20,9 +20,11 @@ import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
 
+import androidx.annotation.Nullable;
 import androidx.loader.app.LoaderManager;
 import androidx.loader.content.Loader;
 
+import com.android.messaging.category.MessageCategory;
 import com.android.messaging.datamodel.BoundCursorLoader;
 import com.android.messaging.datamodel.BugleNotifications;
 import com.android.messaging.datamodel.DataModel;
@@ -59,6 +61,9 @@ public class ConversationListData extends BindableData {
     private final Context mContext;
     private final boolean mArchivedMode;
     private LoaderManager mLoaderManager;
+    /** Currently selected category chip. Null means "All". */
+    @Nullable
+    private MessageCategory mCategoryFilter;
 
     public ConversationListData(final Context context, final ConversationListDataListener listener,
             final boolean archivedMode) {
@@ -94,14 +99,29 @@ public class ConversationListData extends BindableData {
                                 BLOCKED_PARTICIPANTS_PROJECTION,
                                 ParticipantColumns.BLOCKED + "=1", null, null);
                         break;
-                    case CONVERSATION_LIST_LOADER:
+                    case CONVERSATION_LIST_LOADER: {
+                        final String baseSelection =
+                                mArchivedMode ? WHERE_ARCHIVED : WHERE_NOT_ARCHIVED;
+                        final String selection;
+                        final String[] selectionArgs;
+                        if (mCategoryFilter != null) {
+                            selection = baseSelection + " AND "
+                                    + ConversationListViewColumns.CATEGORY + " = ?";
+                            selectionArgs = new String[] {
+                                    Integer.toString(mCategoryFilter.getCode())
+                            };
+                        } else {
+                            selection = baseSelection;
+                            selectionArgs = null;
+                        }
                         loader = new BoundCursorLoader(bindingId, mContext,
                                 MessagingContentProvider.CONVERSATIONS_URI,
                                 ConversationListItemData.PROJECTION,
-                                mArchivedMode ? WHERE_ARCHIVED : WHERE_NOT_ARCHIVED,
-                                null,       // selection args
+                                selection,
+                                selectionArgs,
                                 SORT_ORDER);
                         break;
+                    }
                     default:
                         Assert.fail("Unknown loader id");
                         break;
@@ -179,6 +199,22 @@ public class ConversationListData extends BindableData {
 
     public void handleSecondaryUserMessagesSeen() {
         SmsReceiver.cancelSecondaryUserNotification();
+    }
+
+    /**
+     * Switches the conversation list to show only conversations in {@code category}, or all
+     * (un-archived) conversations when {@code category} is null. Restarts the cursor loader so
+     * the visible list updates without a fragment recreation.
+     */
+    public void setCategoryFilter(@Nullable final MessageCategory category) {
+        if (mCategoryFilter == category) {
+            return;
+        }
+        mCategoryFilter = category;
+        if (mLoaderManager != null && mArgs != null) {
+            mLoaderManager.restartLoader(
+                    CONVERSATION_LIST_LOADER, mArgs, new ConversationListLoaderCallbacks());
+        }
     }
 
     @Override

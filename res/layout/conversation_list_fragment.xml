@@ -20,14 +20,37 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent" >
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@android:id/list"
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:paddingTop="@dimen/conversation_list_first_item_extra_padding"
-        android:clipToPadding="false"
-        android:listSelector="?android:attr/listSelector"
-        android:dividerHeight="0px" />
+        android:layout_height="match_parent"
+        android:orientation="vertical">
+
+        <HorizontalScrollView
+            android:id="@+id/category_chip_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="6dp">
+
+            <LinearLayout
+                android:id="@+id/category_chip_row"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+
+        </HorizontalScrollView>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@android:id/list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:paddingTop="@dimen/conversation_list_first_item_extra_padding"
+            android:clipToPadding="false"
+            android:listSelector="?android:attr/listSelector"
+            android:dividerHeight="0px" />
+    </LinearLayout>
 
     <include
         layout="@layout/list_empty_view"

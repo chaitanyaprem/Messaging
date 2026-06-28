@@ -29,11 +29,13 @@ palette = "1.0.0"
 photo-picker = "1.0.0-alpha01"
 preference = "1.2.1"
 recyclerview = "1.4.0"
+requery-sqlite-android = "3.49.0"
 
 
 junit4 = "4.13.2"
 mockk = "1.14.9"
 robolectric = "4.16.1"
+sqlite-jdbc = "3.50.3.0"
 turbine = "1.2.1"
 
 androidx-test-espresso = "3.7.0"
@@ -77,6 +79,8 @@ androidx-photo-picker = { module = "androidx.photopicker:photopicker-compose", v
 androidx-preference = { module = "androidx.preference:preference", version.ref = "preference" }
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerview" }
 
+requery-sqlite-android = { module = "com.github.requery:sqlite-android", version.ref = "requery-sqlite-android" }
+
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
 glide = { module = "com.github.bumptech.glide:glide", version.ref = "glide" }
@@ -100,6 +104,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 mockk-agent = { module = "io.mockk:mockk-agent", version.ref = "mockk" }
 mockk-android = { module = "io.mockk:mockk-android", version.ref = "mockk" }
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
 
 hilt-gradle-plugin = { module = "com.google.dagger:hilt-android-gradle-plugin", version.ref = "hilt" }

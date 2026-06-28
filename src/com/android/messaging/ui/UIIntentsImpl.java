@@ -175,6 +175,15 @@ public class UIIntentsImpl extends UIIntents {
     }
 
     @Override
+    public void launchConversationActivityAtMessagePosition(final Context context,
+            final String conversationId, final int messagePosition) {
+        final Intent intent = getConversationActivityIntent(context, conversationId, null,
+                false /* withCustomTransition */);
+        intent.putExtra(UI_INTENT_EXTRA_MESSAGE_POSITION, messagePosition);
+        context.startActivity(intent);
+    }
+
+    @Override
     public void launchConversationActivityWithParentStack(final Context context,
                 final String conversationId, final String smsBody) {
         final MessageData messageData = TextUtils.isEmpty(smsBody)
@@ -219,6 +228,13 @@ public class UIIntentsImpl extends UIIntents {
     @Override
     public void launchArchivedConversationsActivity(final Context context) {
         final Intent intent = new Intent(context, ArchivedConversationListActivity.class);
+        context.startActivity(intent);
+    }
+
+    @Override
+    public void launchMessageSearchActivity(final Context context) {
+        final Intent intent = new Intent(context,
+                com.android.messaging.ui.search.MessageSearchActivity.class);
         context.startActivity(intent);
     }
 

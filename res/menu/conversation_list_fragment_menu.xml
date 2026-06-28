@@ -25,6 +25,13 @@
         appcompat:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/action_search"
+        android:orderInCategory="100"
+        android:icon="@drawable/ic_search_light"
+        android:title="@string/action_search"
+        appcompat:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/action_show_archived"
         android:orderInCategory="200"
         android:title="@string/action_menu_show_archived" />

@@ -123,6 +123,19 @@
                 android:value="com.android.messaging.ui.conversationlist.ConversationListActivity" />
         </activity>
 
+        <!-- Full-text search across all messages -->
+        <activity
+            android:name=".ui.search.MessageSearchActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:screenOrientation="user"
+            android:label="@string/search_activity_title"
+            android:theme="@style/BugleTheme.ConversationListActivity"
+            android:parentActivityName="com.android.messaging.ui.conversationlist.ConversationListActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.android.messaging.ui.conversationlist.ConversationListActivity" />
+        </activity>
+
         <!-- Displays the contents of a single conversation -->
         <activity
             android:name=".ui.conversation.ConversationActivity"

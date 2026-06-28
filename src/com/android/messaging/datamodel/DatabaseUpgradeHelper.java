@@ -48,6 +48,9 @@ public class DatabaseUpgradeHelper {
         if (currentVersion < 2) {
             currentVersion = upgradeToVersion2(db);
         }
+        if (currentVersion < 3) {
+            currentVersion = upgradeToVersion3(db);
+        }
         // Rebuild all the views
         final Context context = Factory.get().getApplicationContext();
         DatabaseHelper.dropAllViews(db);
@@ -61,6 +64,26 @@ public class DatabaseUpgradeHelper {
                 DatabaseHelper.ConversationColumns.IS_ENTERPRISE + " INT DEFAULT(0)");
         LogUtil.i(TAG, "Ugraded database to version 2");
         return 2;
+    }
+
+    private int upgradeToVersion3(final SQLiteDatabase db) {
+        // The FTS5 index lives in the Requery-backed SearchDatabase sidecar; here we just add
+        // the capture infrastructure: pending-updates tables that the capture triggers feed
+        // into. SearchIndexSyncer drains them into the sidecar on demand.
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PENDING_MESSAGE_UPDATES_TABLE_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTS_AI_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTS_AU_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTS_AD_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTICIPANTS_AI_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTICIPANTS_AU_TRIGGER_SQL);
+        db.execSQL(DatabaseHelper.CREATE_SEARCH_PARTICIPANTS_AD_TRIGGER_SQL);
+        // Backfill: synthesize an upsert pending-row for every existing part / participant so
+        // the sidecar gets populated on next search.
+        db.execSQL(DatabaseHelper.BACKFILL_SEARCH_PENDING_MESSAGES_SQL);
+        db.execSQL(DatabaseHelper.BACKFILL_SEARCH_PENDING_PARTICIPANTS_SQL);
+        LogUtil.i(TAG, "Upgraded database to version 3");
+        return 3;
     }
 
     /**

@@ -63,6 +63,17 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String PARTS_TABLE = "parts";
     public static final String PARTICIPANTS_TABLE = "participants";
     public static final String CONVERSATION_PARTICIPANTS_TABLE = "conversation_participants";
+    /**
+     * Log tables populated by capture triggers on {@code parts} / {@code participants}.
+     * {@link SearchIndexSyncer} drains them into {@link SearchDatabase}'s FTS5 indices.
+     * The FTS tables themselves live in a separate Requery-backed DB; framework SQLite on
+     * many Android builds doesn't ship FTS5, which is why we don't put the index in the
+     * main schema.
+     */
+    public static final String SEARCH_PENDING_MESSAGE_UPDATES_TABLE =
+            "search_pending_message_updates";
+    public static final String SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE =
+            "search_pending_participant_updates";
 
     // Views
     static final String DRAFT_PARTS_VIEW = "draft_parts_view";
@@ -384,6 +395,101 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             "CREATE INDEX index_" + PARTS_TABLE + "_message_id ON " + PARTS_TABLE + "("
                     + PartColumns.MESSAGE_ID + ")";
 
+    // Pending-updates log: capture triggers on parts and participants enqueue a row here for
+    // every write. SearchIndexSyncer drains the log into the Requery-backed search DB so the
+    // main schema doesn't depend on FTS5 (which is missing from framework SQLite on many
+    // Android builds).
+    public static final String CREATE_SEARCH_PENDING_MESSAGE_UPDATES_TABLE_SQL =
+            "CREATE TABLE " + SEARCH_PENDING_MESSAGE_UPDATES_TABLE + " ("
+                    + "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    + "op TEXT NOT NULL, "
+                    + "part_id INTEGER NOT NULL, "
+                    + "text_value TEXT)";
+
+    public static final String CREATE_SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE_SQL =
+            "CREATE TABLE " + SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE + " ("
+                    + "_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                    + "op TEXT NOT NULL, "
+                    + "participant_id INTEGER NOT NULL, "
+                    + "full_name TEXT, "
+                    + "first_name TEXT, "
+                    + "send_destination TEXT, "
+                    + "normalized_destination TEXT)";
+
+    public static final String CREATE_SEARCH_PARTS_AI_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_parts_ai AFTER INSERT ON " + PARTS_TABLE + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_MESSAGE_UPDATES_TABLE
+                    + "(op, part_id, text_value) "
+                    + "VALUES ('upsert', new." + PartColumns._ID + ", new." + PartColumns.TEXT
+                    + "); END";
+
+    public static final String CREATE_SEARCH_PARTS_AU_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_parts_au AFTER UPDATE ON " + PARTS_TABLE + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_MESSAGE_UPDATES_TABLE
+                    + "(op, part_id, text_value) "
+                    + "VALUES ('upsert', new." + PartColumns._ID + ", new." + PartColumns.TEXT
+                    + "); END";
+
+    public static final String CREATE_SEARCH_PARTS_AD_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_parts_ad AFTER DELETE ON " + PARTS_TABLE + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_MESSAGE_UPDATES_TABLE
+                    + "(op, part_id) "
+                    + "VALUES ('delete', old." + PartColumns._ID + "); END";
+
+    public static final String CREATE_SEARCH_PARTICIPANTS_AI_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_participants_ai AFTER INSERT ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE
+                    + "(op, participant_id, full_name, first_name, send_destination, "
+                    + "normalized_destination) "
+                    + "VALUES ('upsert', new." + ParticipantColumns._ID + ", "
+                    + "new." + ParticipantColumns.FULL_NAME + ", "
+                    + "new." + ParticipantColumns.FIRST_NAME + ", "
+                    + "new." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "new." + ParticipantColumns.NORMALIZED_DESTINATION + "); END";
+
+    public static final String CREATE_SEARCH_PARTICIPANTS_AU_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_participants_au AFTER UPDATE ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE
+                    + "(op, participant_id, full_name, first_name, send_destination, "
+                    + "normalized_destination) "
+                    + "VALUES ('upsert', new." + ParticipantColumns._ID + ", "
+                    + "new." + ParticipantColumns.FULL_NAME + ", "
+                    + "new." + ParticipantColumns.FIRST_NAME + ", "
+                    + "new." + ParticipantColumns.SEND_DESTINATION + ", "
+                    + "new." + ParticipantColumns.NORMALIZED_DESTINATION + "); END";
+
+    public static final String CREATE_SEARCH_PARTICIPANTS_AD_TRIGGER_SQL =
+            "CREATE TRIGGER search_pending_participants_ad AFTER DELETE ON " + PARTICIPANTS_TABLE
+                    + " BEGIN "
+                    + "INSERT INTO " + SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE
+                    + "(op, participant_id) "
+                    + "VALUES ('delete', old." + ParticipantColumns._ID + "); END";
+
+    /**
+     * Backfill: synthesize an upsert pending-row for every existing part / participant so the
+     * search DB gets populated on next sync. Used by the v3 migration and on fresh installs.
+     */
+    public static final String BACKFILL_SEARCH_PENDING_MESSAGES_SQL =
+            "INSERT INTO " + SEARCH_PENDING_MESSAGE_UPDATES_TABLE
+                    + "(op, part_id, text_value) "
+                    + "SELECT 'upsert', " + PartColumns._ID + ", " + PartColumns.TEXT
+                    + " FROM " + PARTS_TABLE
+                    + " WHERE " + PartColumns.TEXT + " IS NOT NULL"
+                    + " AND " + PartColumns.TEXT + " <> ''";
+
+    public static final String BACKFILL_SEARCH_PENDING_PARTICIPANTS_SQL =
+            "INSERT INTO " + SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE
+                    + "(op, participant_id, full_name, first_name, send_destination, "
+                    + "normalized_destination) "
+                    + "SELECT 'upsert', " + ParticipantColumns._ID + ", "
+                    + ParticipantColumns.FULL_NAME + ", "
+                    + ParticipantColumns.FIRST_NAME + ", "
+                    + ParticipantColumns.SEND_DESTINATION + ", "
+                    + ParticipantColumns.NORMALIZED_DESTINATION
+                    + " FROM " + PARTICIPANTS_TABLE;
+
     // Participants table schema
     public static class ParticipantColumns implements BaseColumns {
         /* The subscription id for the sim associated with this self participant.
@@ -538,6 +644,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         CREATE_PARTS_TABLE_SQL,
         CREATE_PARTICIPANTS_TABLE_SQL,
         CREATE_CONVERSATION_PARTICIPANTS_TABLE_SQL,
+        CREATE_SEARCH_PENDING_MESSAGE_UPDATES_TABLE_SQL,
+        CREATE_SEARCH_PENDING_PARTICIPANT_UPDATES_TABLE_SQL,
     };
 
     // List of all our indices
@@ -555,6 +663,12 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String[] CREATE_TRIGGER_SQLS = new String[] {
             CREATE_PARTS_TRIGGER_SQL,
             CREATE_MESSAGES_TRIGGER_SQL,
+            CREATE_SEARCH_PARTS_AI_TRIGGER_SQL,
+            CREATE_SEARCH_PARTS_AU_TRIGGER_SQL,
+            CREATE_SEARCH_PARTS_AD_TRIGGER_SQL,
+            CREATE_SEARCH_PARTICIPANTS_AI_TRIGGER_SQL,
+            CREATE_SEARCH_PARTICIPANTS_AU_TRIGGER_SQL,
+            CREATE_SEARCH_PARTICIPANTS_AD_TRIGGER_SQL,
     };
 
     // List of all our views

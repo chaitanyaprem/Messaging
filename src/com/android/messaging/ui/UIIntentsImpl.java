@@ -542,4 +542,35 @@ public class UIIntentsImpl extends UIIntents {
         intent.setIdentifier(conversationId);
         return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
     }
+
+    @Override
+    public PendingIntent getPendingIntentForCopyingOtp(final Context context,
+            final String conversationId, final String otpCode,
+            final int notificationId, final String notificationTag) {
+        final Intent intent = new Intent(context,
+                com.android.messaging.receiver.OtpCopyReceiver.class);
+        intent.setAction(ACTION_COPY_OTP);
+        intent.putExtra(UI_INTENT_EXTRA_CONVERSATION_ID, conversationId);
+        intent.putExtra(UI_INTENT_EXTRA_OTP_CODE, otpCode);
+        intent.putExtra(UI_INTENT_EXTRA_NOTIFICATION_ID, notificationId);
+        intent.putExtra(UI_INTENT_EXTRA_NOTIFICATION_TAG, notificationTag);
+        // Identifier disambiguates so back-to-back conversations don't share a PendingIntent.
+        intent.setIdentifier("otp-copy:" + conversationId);
+        return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    @Override
+    public PendingIntent getPendingIntentForDeletingMessageFromNotification(final Context context,
+            final String conversationId, final String messageId,
+            final int notificationId, final String notificationTag) {
+        final Intent intent = new Intent(context,
+                com.android.messaging.receiver.MessageDeleteReceiver.class);
+        intent.setAction(ACTION_DELETE_MESSAGE);
+        intent.putExtra(UI_INTENT_EXTRA_CONVERSATION_ID, conversationId);
+        intent.putExtra(UI_INTENT_EXTRA_MESSAGE_ID_TO_DELETE, messageId);
+        intent.putExtra(UI_INTENT_EXTRA_NOTIFICATION_ID, notificationId);
+        intent.putExtra(UI_INTENT_EXTRA_NOTIFICATION_TAG, notificationTag);
+        intent.setIdentifier("msg-delete:" + messageId);
+        return PendingIntent.getBroadcast(context, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+    }
 }

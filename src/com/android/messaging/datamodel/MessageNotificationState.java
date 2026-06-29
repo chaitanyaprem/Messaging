@@ -279,6 +279,13 @@ public class MessageNotificationState {
             return messageLineInfo.mMessageId;
         }
 
+        /** The body text of the most recent message in this conversation, or null. */
+        @androidx.annotation.Nullable
+        public CharSequence getLatestMessageText() {
+            final MessageLineInfo messageLineInfo = getLatestMessageLineInfo();
+            return messageLineInfo == null ? null : messageLineInfo.mText;
+        }
+
         public boolean getDoesLatestMessageNeedDownload() {
             final MessageLineInfo messageLineInfo = getLatestMessageLineInfo();
             if (messageLineInfo == null) {

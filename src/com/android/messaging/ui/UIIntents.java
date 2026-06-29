@@ -102,6 +102,21 @@ public abstract class UIIntents {
 
     public static final String ACTION_MESSAGE_READ = "com.android.messaging.action.MESSAGE_READ";
 
+    // Copy an OTP / verification code from a notification to the system clipboard.
+    public static final String ACTION_COPY_OTP = "com.android.messaging.action.COPY_OTP";
+    public static final String UI_INTENT_EXTRA_OTP_CODE = "otp_code";
+
+    // Delete a message from a notification action.
+    public static final String ACTION_DELETE_MESSAGE =
+            "com.android.messaging.action.DELETE_MESSAGE";
+    public static final String UI_INTENT_EXTRA_MESSAGE_ID_TO_DELETE = "message_id_to_delete";
+
+    // The id and tag of the notification that the action came from, so receivers can dismiss
+    // it after the action. The pair (tag, id) is what NotificationManager uses to identify
+    // a posted notification — id alone would cancel across all conversations.
+    public static final String UI_INTENT_EXTRA_NOTIFICATION_ID = "notification_id";
+    public static final String UI_INTENT_EXTRA_NOTIFICATION_TAG = "notification_tag";
+
     /**
      * Launch the permission check activity
      */
@@ -134,6 +149,22 @@ public abstract class UIIntents {
      */
     public abstract void launchConversationActivityAtMessagePosition(Context context,
             String conversationId, int messagePosition);
+
+    /**
+     * Build a PendingIntent that, when fired, copies the given OTP code to the clipboard and
+     * dismisses the originating notification (identified by {@code notificationTag} +
+     * {@code notificationId}).
+     */
+    public abstract PendingIntent getPendingIntentForCopyingOtp(Context context,
+            String conversationId, String otpCode, int notificationId, String notificationTag);
+
+    /**
+     * Build a PendingIntent that, when fired, deletes {@code messageId} and dismisses the
+     * originating notification.
+     */
+    public abstract PendingIntent getPendingIntentForDeletingMessageFromNotification(
+            Context context, String conversationId, String messageId,
+            int notificationId, String notificationTag);
 
 
     /**

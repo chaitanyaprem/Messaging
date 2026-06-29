@@ -416,12 +416,42 @@ public class BugleNotifications {
             setUpShortcuts(context, conversation, notifBuilder, latestPerson);
         }
 
-        final PendingIntent markAsReadPendingIntent =
-                UIIntents.get().getPendingIntentForMarkingAsRead(context, conversationId);
-        final NotificationCompat.Action markAsReadActionBuilder =
-                new NotificationCompat.Action.Builder(0,
-                        context.getString(R.string.mark_as_read), markAsReadPendingIntent).build();
-        notifBuilder.addAction(markAsReadActionBuilder);
+        // Compute the (tag, id) pair up-front so the OTP/delete action receivers can use it
+        // to dismiss the notification after firing.
+        final int notificationType = state.mType;
+        final String notificationTag =
+                buildNotificationTag(notificationType, conversationId);
+
+        // Action order matters: Android typically renders the first 2–3 actions in the
+        // collapsed notification, hiding the rest behind an expand affordance. We put Copy
+        // code FIRST when an OTP is detected so the most time-critical action is always
+        // visible without expanding the notification.
+        final String messageId = conversation.getLatestMessageId();
+        final CharSequence latestText = conversation.getLatestMessageText();
+        final String otpCode = latestText == null
+                ? null
+                : com.android.messaging.otp.OtpExtractor.extract(latestText.toString());
+        if (otpCode != null) {
+            final PendingIntent copyIntent = UIIntents.get()
+                    .getPendingIntentForCopyingOtp(context, conversationId, otpCode,
+                            notificationType, notificationTag);
+            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
+                    context.getString(R.string.notification_copy_otp), copyIntent).build());
+        }
+
+        // Mark as read is suppressed for OTP-bearing notifications: the system collapses to
+        // ~3 visible actions, so adding it would push Delete out of view. After a Copy or
+        // Delete tap our receivers dismiss the notification anyway, so the user never needs
+        // a separate "mark read" affordance for these short-lived codes.
+        if (otpCode == null) {
+            final PendingIntent markAsReadPendingIntent =
+                    UIIntents.get().getPendingIntentForMarkingAsRead(context, conversationId);
+            final NotificationCompat.Action markAsReadActionBuilder =
+                    new NotificationCompat.Action.Builder(0,
+                            context.getString(R.string.mark_as_read),
+                            markAsReadPendingIntent).build();
+            notifBuilder.addAction(markAsReadActionBuilder);
+        }
 
         final String selfId = conversation.mSelfParticipantId;
 
@@ -444,7 +474,6 @@ public class BugleNotifications {
         replyActionBuilder.addRemoteInput(remoteInput);
         notifBuilder.addAction(replyActionBuilder.build());
 
-        final String messageId = conversation.getLatestMessageId();
         if (conversation.getDoesLatestMessageNeedDownload() && messageId != null) {
             final PendingIntent downloadPendingIntent =
                     RedownloadMmsAction.getPendingIntentForRedownloadMms(context, messageId);
@@ -457,6 +486,20 @@ public class BugleNotifications {
             notifBuilder.addAction(downloadAction);
         }
 
+        // Delete: always available on incoming-SMS notifications and refers to the latest
+        // message in the conversation (which is what the notification is announcing). The
+        // receiver dismisses the notification after deleting; if other unread messages exist
+        // in the conversation the next notification refresh will re-post a notification with
+        // those remaining messages.
+        if (messageId != null) {
+            final PendingIntent deleteIntent = UIIntents.get()
+                    .getPendingIntentForDeletingMessageFromNotification(context, conversationId,
+                            messageId, notificationType, notificationTag);
+            notifBuilder.addAction(new NotificationCompat.Action.Builder(0,
+                    context.getString(R.string.notification_delete_message), deleteIntent)
+                    .build());
+        }
+
         notifBuilder
                 .setSmallIcon(R.drawable.ic_sms_light)
                 .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
@@ -467,18 +510,16 @@ public class BugleNotifications {
         // Mark the notification as finished
         state.mCanceled = true;
 
-        final int type = state.mType;
         final NotificationManagerCompat notificationManager =
                 NotificationManagerCompat.from(Factory.get().getApplicationContext());
-        final String notificationTag = buildNotificationTag(type, conversationId);
 
         Notification notification = notifBuilder.build();
         notification.flags |= Notification.FLAG_AUTO_CANCEL;
 
-        notificationManager.notify(notificationTag, type, notification);
+        notificationManager.notify(notificationTag, notificationType, notification);
 
         LogUtil.i(TAG, "Notifying for conversation " + conversationId + "; "
-                + "tag = " + notificationTag + ", type = " + type);
+                + "tag = " + notificationTag + ", type = " + notificationType);
     }
 
     /**
